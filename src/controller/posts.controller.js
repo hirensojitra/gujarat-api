@@ -2,21 +2,23 @@ const pool = require("../database/index")
 const postsController = {
     getAll: async (req, res) => {
         try {
-            const [rows, fields] = await pool.query("select * from posts")
+            const [rows, fields] = await pool.execute("SELECT * FROM district");
+            console.log("Rows:", rows);
             res.json({
                 data: rows
-            })
+            });
         } catch (error) {
-            console.log(error)
-            res.json({
-                status: "error"
-            })
+            console.error("Error in getAll:", error);
+            res.status(500).json({
+                status: "error",
+                message: "Internal Server Error"
+            });
         }
     },
     getById: async (req, res) => {
         try {
             const { id } = req.params
-            const [rows, fields] = await pool.query("select * from posts where id = ?", [id])
+            const [rows, fields] = await pool.query("select * from district where id = ?", [id])
             res.json({
                 data: rows
             })

@@ -1,14 +1,37 @@
 {
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+  "name": "netlify-express",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "netlify-lambda": {
+    "functions": "functions"
   },
+  "scripts": {
+    "start": "netlify-lambda serve src",
+    "build": "netlify-lambda build src",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "bcrypt": "^5.1.0",
+    "chokidar": "^3.5.3",
     "dotenv": "^16.0.1",
     "express": "^4.18.1",
     "googleapis": "^105.0.0",
     "jsonwebtoken": "^9.0.0",
-    "mysql2": "^2.3.3"
+    "mysql2": "^2.3.3",
+    "netlify-lambda": "^2.0.16",
+    "sass-loader": "^10",
+    "serverless-http": "^3.2.0",
+    "watchpack-chokidar2": "^2.0.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.7",
+    "@babel/preset-env": "^7.23.8",
+    "babel-loader": "^8.0.0",
+    "raw-loader": "^4.0.2",
+    "webpack": "^5.89.0"
   }
 }
