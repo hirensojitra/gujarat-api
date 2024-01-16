@@ -146,12 +146,30 @@ const villageController = {
       const { name, gu_name, is_deleted, taluka_id, district_id } = req.body;
       const { id } = req.params;
 
-      const sql = `
-        UPDATE village v
-        SET v.name = ?, v.gu_name = ?, v.is_deleted = ?, v.taluka_id = ?, v.district_id = ?
-        WHERE v.id = ? AND v.is_deleted = false
-          AND EXISTS (SELECT 1 FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.id = ? AND t.is_deleted = false AND d.is_deleted = false AND v.taluka_id = t.id)
-      `;
+      const sql = `UPDATE village v SET
+            v.name = ?,
+            v.gu_name = ?,
+            v.is_deleted = ?,
+            v.taluka_id = ?,
+            v.district_id = ? 
+        WHERE
+            v.id = ?
+        AND 
+            v.is_deleted = false
+        AND EXISTS
+            (SELECT 1 FROM taluka t
+                JOIN
+                    district d
+                        ON
+                            t.district_id = d.id
+                                WHERE
+                                    t.id = ?
+                                AND
+                                    t.is_deleted = false
+                                AND 
+                                    d.is_deleted = false
+                                AND
+                                    v.taluka_id = t.id)`;
 
       const [rows, fields] = await pool.query(sql, [
         name,
