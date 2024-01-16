@@ -18,9 +18,7 @@ const districtController = {
       const [rows, fields] = await pool.query(
         "SELECT * FROM district WHERE is_deleted = true"
       );
-      res.json({
-        data: rows,
-      });
+      res.json(rows);
     } catch (error) {
       res.json({
         status: "error",
@@ -103,6 +101,7 @@ const districtController = {
   restore: async (req, res) => {
     try {
       const { id } = req.params;
+      console.log(id)
       const [rows, fields] = await pool.query(
         "UPDATE district SET is_deleted = false WHERE id = ?",
         [id]
@@ -125,7 +124,7 @@ const districtController = {
         [id]
       );
       res.json({
-        data: rows,
+        deletedDistrictCount: rows[0].deletedDistrictsCount,
       });
     } catch (error) {
       console.log(error);

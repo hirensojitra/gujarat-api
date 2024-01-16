@@ -10,6 +10,6 @@ router.post("/", districtController.create)
 router.put("/:id", districtController.update)
 router.delete("/:id", districtController.delete)
 router.delete("/restore/:id", districtController.restore)
-router.delete("/deleted/:id", districtController.deletedLength)
+router.get("/deleted/count", districtController.deletedLength)
 
 module.exports = router

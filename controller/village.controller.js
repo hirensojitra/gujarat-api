@@ -34,7 +34,6 @@ const villageController = {
       JOIN district d ON v.district_id = d.id
       WHERE v.taluka_id = ? AND v.is_deleted = false AND t.is_deleted = false AND d.is_deleted = false;
     `;
-      console.log(getVillagesByTaluka, id);
       const [villages] = await pool.query(getVillagesByTaluka, [id]);
 
       res.json(villages);
@@ -115,7 +114,6 @@ const villageController = {
     }
   },
   create: async (req, res) => {
-    console.log(req.body);
     try {
       const { name, gu_name, is_deleted, taluka_id } = req.body;
 
@@ -126,7 +124,6 @@ const villageController = {
       JOIN district d ON t.district_id = d.id
       WHERE t.id = ? AND t.is_deleted = false AND d.is_deleted = false
     `;
-      console.log(sql, [name, gu_name, is_deleted, taluka_id]);
       const [rows, fields] = await pool.query(sql, [
         name,
         gu_name,

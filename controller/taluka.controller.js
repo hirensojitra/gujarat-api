@@ -58,7 +58,6 @@ const talukaController = {
       });
     }
   },
-
   getById: async (req, res) => {
     try {
       const { id } = req.params;
@@ -128,7 +127,6 @@ const talukaController = {
     }
   },
   delete: async (req, res) => {
-    console.log(req.params)
     try {
       const { id } = req.params;
       const [rows, fields] = await pool.query(
