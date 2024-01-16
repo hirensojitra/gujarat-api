@@ -70,7 +70,7 @@ const authController = {
         const { password, ...userData } = user[0];
         return res.json({
           token: accessToken,
-          user: userData
+          user: userData,
         });
       }
 
@@ -110,36 +110,74 @@ const authController = {
         village_id,
         image,
       } = req.body;
+
       const checkUserQuery = "SELECT * FROM users WHERE username = ?";
-      const [user] = await req.mysql.query(checkUserQuery, [username]);
+      const [user] = await pool.query(checkUserQuery, [username]);
+
       if (user.length === 0) {
         return res
           .status(404)
           .json({ success: false, message: "User not found" });
       }
+      const updateFields = [];
+      const params = [];
+
+      if (firstName) {
+        updateFields.push("firstName = ?");
+        params.push(firstName);
+      }
+
+      if (lastName) {
+        updateFields.push("lastName = ?");
+        params.push(lastName);
+      }
+
+      if (mobile) {
+        updateFields.push("mobile = ?");
+        params.push(mobile);
+      }
+
+      if (district_id) {
+        updateFields.push("district_id = ?");
+        params.push(district_id);
+      }
+
+      if (taluka_id) {
+        updateFields.push("taluka_id = ?");
+        params.push(taluka_id);
+      }
+
+      if (village_id) {
+        updateFields.push("village_id = ?");
+        params.push(village_id);
+      }
+
+      if (image) {
+        updateFields.push("image = ?");
+        var img= image;
+        if (image == "delete") {
+          img = null;
+        }
+        params.push(img);
+      }
+
+      // Check if any fields were provided
+      if (updateFields.length === 0) {
+        return res.status(400).json({ error: "No fields to update" });
+      }
+
       const updateQuery = `
         UPDATE users
-        SET firstName = ?, lastName = ?, mobile = ?,
-        district_id = ?, taluka_id = ?, village_id = ?, image = ?
+        SET ${updateFields.join(", ")}
         WHERE username = ?
       `;
-      const params = [
-        firstName,
-        lastName,
-        mobile,
-        district_id,
-        taluka_id,
-        village_id,
-        image,
-        username,
-      ];
+      params.push(username);
 
-      const [updateResult] = await req.mysql.query(updateQuery, params);
+      const [updateResult] = await pool.query(updateQuery, params);
 
       if (updateResult.affectedRows > 0) {
-        const updatedUser = { ...user[0], ...updateResult };
-        const { password, ...userWithoutPassword } = updatedUser;
-
+        const [updatedUser] = await pool.query(checkUserQuery, [username]);
+        const { password, ...userWithoutPassword } = updatedUser[0];
         return res.status(200).json({
           success: true,
           message: "User updated successfully",

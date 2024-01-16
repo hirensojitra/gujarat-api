@@ -104,7 +104,7 @@ const villageController = {
       const [rows, fields] = await pool.query(sql, [id]);
 
       res.json({
-        data: rows,
+        data: rows[0],
       });
     } catch (error) {
       console.error(error);
