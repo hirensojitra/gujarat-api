@@ -62,7 +62,7 @@ const districtController = {
       const { name, gu_name, is_deleted } = req.body;
       const { id } = req.params;
       const sql =
-        "UPDATE district SET name = ?, gu_name = ?, is_deleted = ? WHERE id = ? AND is_deleted = false";
+        "UPDATE district SET name = ?, gu_name = ?, is_deleted = ? WHERE id = ? AND is_deleted = 0";
       const [rows, fields] = await pool.query(sql, [
         name,
         gu_name,
