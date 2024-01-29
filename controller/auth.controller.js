@@ -7,67 +7,61 @@ const authController = {
     try {
       const { email, password, username } = req.body;
 
-      const [user] = await pool.query(
-        "SELECT * FROM users WHERE email = ? or username = ?",
-        [email, username]
-      );
+      const userQuery = `
+            SELECT * FROM users WHERE email = $1 OR username = $2
+        `;
+      const userResult = await pool.query(userQuery, [email, username]);
+      const existingUser = userResult.rows[0];
 
-      if (user[0]) {
-        return res.json({ error: "Email already exists!" });
+      if (existingUser) {
+        return res.json({ error: "Email or username already exists!" });
       }
 
-      const hash = await new Promise((resolve, reject) => {
-        bcrypt.hash(password, 10, function (err, hashedPassword) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(hashedPassword);
-          }
-        });
-      });
-      const sql =
-        "INSERT INTO users (email, password, username) VALUES (?, ?, ?)";
-      const [rows] = await pool.query(sql, [email, hash, username]);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      if (rows.affectedRows) {
-        return res.json({ success: true, user: rows[0] });
+      const insertUserQuery = `
+            INSERT INTO users (email, password, username) VALUES ($1, $2, $3)
+        `;
+      const insertUserResult = await pool.query(insertUserQuery, [email, hashedPassword, username]);
+
+      if (insertUserResult.rowCount > 0) {
+        return res.json({ success: true, user: { email, username } });
       } else {
         return res.json({ error: "Error" });
       }
     } catch (error) {
-      console.log(error);
+      console.error(error);
       res.json({ error: error.message });
     }
   },
+
   login: async (req, res) => {
     try {
       const { username, password } = req.body;
-      const [user] = await pool.query(
-        "SELECT * FROM users WHERE username = ?",
-        [username]
-      );
 
-      if (!user[0]) {
+      const userQuery = `
+            SELECT * FROM users WHERE username = $1
+        `;
+      const userResult = await pool.query(userQuery, [username]);
+      const user = userResult.rows[0];
+
+      if (!user) {
         return res.json({ error: "Invalid username!" });
       }
-      const hash = await new Promise((resolve, reject) => {
-        bcrypt.hash(password, 10, function (err, hashedPassword) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(hashedPassword);
-          }
-        });
-      });
-      if (hash) {
+
+      const passwordMatch = await bcrypt.compare(password, user.password);
+
+      if (passwordMatch) {
         const accessToken = jwt.sign(
-          { userId: user[0].id },
+          { userId: user.id },
           "3812932sjad34&*@",
           {
             expiresIn: "1h",
           }
         );
-        const { password, ...userData } = user[0];
+
+        const userData = { ...user, password: undefined };
+
         return res.json({
           token: accessToken,
           user: userData,
@@ -76,28 +70,28 @@ const authController = {
 
       return res.json({ error: "Wrong password!" });
     } catch (error) {
-      console.log(error);
+      console.error(error);
       res.json({ error: error.message });
     }
-  },
+  }
+  ,
   checkUsername: async (req, res) => {
     try {
       const { username } = req.body;
 
       // Check if the username is already taken
-      const checkUsernameQuery = "SELECT * FROM users WHERE username = ?";
+      const checkUsernameQuery = "SELECT * FROM users WHERE username = $1";
 
-      const [results] = await req.mysql.query(checkUsernameQuery, [username]);
+      const results = await pool.query(checkUsernameQuery, [username]);
+      const isUsernameTaken = results.rows.length > 0;
 
-      const isUsernameTaken = results.length > 0;
       res.json({ isTaken: isUsernameTaken });
     } catch (error) {
       console.error("Error checking username:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      res.status(500).json({ success: false, message: "Internal Server Error" });
     }
-  },
+  }
+  ,
   updateUser: async (req, res) => {
     try {
       const { username } = req.params;
@@ -111,53 +105,53 @@ const authController = {
         image,
       } = req.body;
 
-      const checkUserQuery = "SELECT * FROM users WHERE username = ?";
-      const [user] = await pool.query(checkUserQuery, [username]);
+      const checkUserQuery = "SELECT * FROM users WHERE username = $1";
+      const userResult = await pool.query(checkUserQuery, [username]);
+      const user = userResult.rows[0];
 
-      if (user.length === 0) {
-        return res
-          .status(404)
-          .json({ success: false, message: "User not found" });
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
       }
+
       const updateFields = [];
       const params = [];
 
       if (firstName) {
-        updateFields.push("firstName = ?");
+        updateFields.push("firstName = $1");
         params.push(firstName);
       }
 
       if (lastName) {
-        updateFields.push("lastName = ?");
+        updateFields.push("lastName = $2");
         params.push(lastName);
       }
 
       if (mobile) {
-        updateFields.push("mobile = ?");
+        updateFields.push("mobile = $3");
         params.push(mobile);
       }
 
       if (district_id) {
-        updateFields.push("district_id = ?");
+        updateFields.push("district_id = $4");
         params.push(district_id);
       }
 
       if (taluka_id) {
-        updateFields.push("taluka_id = ?");
+        updateFields.push("taluka_id = $5");
         params.push(taluka_id);
       }
 
       if (village_id) {
-        updateFields.push("village_id = ?");
+        updateFields.push("village_id = $6");
         params.push(village_id);
       }
 
       if (image) {
-        updateFields.push("image = ?");
-        var img= image;
-        if (image == "delete") {
+        let img = image;
+        if (image === "delete") {
           img = null;
         }
+        updateFields.push("image = $7");
         params.push(img);
       }
 
@@ -166,18 +160,20 @@ const authController = {
         return res.status(400).json({ error: "No fields to update" });
       }
 
-      const updateQuery = `
-        UPDATE users
-        SET ${updateFields.join(", ")}
-        WHERE username = ?
-      `;
       params.push(username);
 
-      const [updateResult] = await pool.query(updateQuery, params);
+      const updateQuery = `
+            UPDATE users
+            SET ${updateFields.join(", ")}
+            WHERE username = $${params.length}
+        `;
 
-      if (updateResult.affectedRows > 0) {
-        const [updatedUser] = await pool.query(checkUserQuery, [username]);
-        const { password, ...userWithoutPassword } = updatedUser[0];
+      const updateResult = await pool.query(updateQuery, params);
+
+      if (updateResult.rowCount > 0) {
+        const updatedUserResult = await pool.query(checkUserQuery, [username]);
+        const updatedUser = updatedUserResult.rows[0];
+        const { password, ...userWithoutPassword } = updatedUser;
         return res.status(200).json({
           success: true,
           message: "User updated successfully",
@@ -188,25 +184,27 @@ const authController = {
       }
     } catch (error) {
       console.error("Error updating user:", error);
-      return res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
-  },
+  }
+  ,
   checkEmail: async (req, res) => {
     try {
       const { email } = req.body;
-      const checkEmailQuery = "SELECT * FROM users WHERE email = ?";
-      const [results] = await pool.query(checkEmailQuery, [email]);
-      const isEmailTaken = results.length > 0;
+
+      // Check if the email is already taken
+      const checkEmailQuery = "SELECT * FROM users WHERE email = $1";
+
+      const results = await pool.query(checkEmailQuery, [email]);
+      const isEmailTaken = results.rows.length > 0;
+
       res.json({ isTaken: isEmailTaken });
     } catch (error) {
       console.error("Error checking email:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      res.status(500).json({ success: false, message: "Internal Server Error" });
     }
-  },
+  }
+
 };
 
 module.exports = authController;
