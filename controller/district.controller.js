@@ -45,10 +45,10 @@ const districtController = {
     try {
       const { name, gu_name, is_deleted } = req.body;
       const sql =
-        "INSERT INTO district (name, gu_name, is_deleted) VALUES (?, ?, ?)";
-      const [rows, fields] = await pool.query(sql, [name, gu_name, is_deleted]);
+        "INSERT INTO district (name, gu_name, is_deleted) VALUES ($1, $2, $3) RETURNING *";
+      const result = await pool.query(sql, [name, gu_name, is_deleted]);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.log(error);
@@ -62,16 +62,11 @@ const districtController = {
       const { name, gu_name, is_deleted } = req.body;
       const { id } = req.params;
       const sql =
-        "UPDATE district SET name = ?, gu_name = ?, is_deleted = ? WHERE id = ? AND is_deleted = 0";
-      const [rows, fields] = await pool.query(sql, [
-        name,
-        gu_name,
-        is_deleted,
-        id,
-      ]);
+        "UPDATE district SET name = $1, gu_name = $2, is_deleted = $3 WHERE id = $4 AND is_deleted = 0";
+      const result = await pool.query(sql, [name, gu_name, is_deleted, id]);
       res.json({
         success: true,
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.log(error);
