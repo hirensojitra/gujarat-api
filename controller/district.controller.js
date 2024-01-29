@@ -2,12 +2,12 @@ const pool = require("../database/index");
 const districtController = {
   getAll: async (req, res) => {
     try {
-      const [rows, fields] = await pool.query(
-        "SELECT * FROM district WHERE is_deleted = false"
-      );
+      const query = "SELECT * FROM district WHERE is_deleted = false";
+      const { rows } = await pool.query(query);
       res.json(rows);
     } catch (error) {
-      res.json({
+      console.error("Error retrieving districts:", error);
+      res.status(500).json({
         status: "error",
         message: "Districts not found",
       });
@@ -33,7 +33,7 @@ const districtController = {
         "SELECT * FROM district WHERE id = ? AND is_deleted = false",
         [id]
       );
-      res.json(rows[0]||{});
+      res.json(rows[0] || {});
     } catch (error) {
       console.log(error);
       res.json({
@@ -101,7 +101,7 @@ const districtController = {
   restore: async (req, res) => {
     try {
       const { id } = req.params;
-      console.log(id)
+      console.log(id);
       const [rows, fields] = await pool.query(
         "UPDATE district SET is_deleted = false WHERE id = ?",
         [id]
