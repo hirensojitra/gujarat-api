@@ -2,11 +2,10 @@ const pool = require("../database/index");
 const talukaController = {
   getAll: async (req, res) => {
     try {
-      const [rows, fields] = await pool.query(
-        "SELECT * FROM taluka WHERE is_deleted = false"
-      );
+      const sql = "SELECT * FROM taluka WHERE is_deleted = 0";
+      const result = await pool.query(sql);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       res.json({
@@ -18,9 +17,9 @@ const talukaController = {
   getByDistrictId: async (req, res) => {
     try {
       const { id } = req.params;
-      const getTalukasByDistrictQuery = `SELECT t.id, t.name, t.gu_name, d.name as district_name, d.id as district_id, d.gu_name as district_gu_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.district_id = ? AND t.is_deleted = false AND d.is_deleted = false;`;
-      const [talukas] = await pool.query(getTalukasByDistrictQuery, [id]);
-      res.json(talukas);
+      const getTalukasByDistrictQuery = `SELECT t.id, t.name, t.gu_name, d.name as district_name, d.id as district_id, d.gu_name as district_gu_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.district_id = $1 AND t.is_deleted = 0 AND d.is_deleted = 0`;
+      const talukas = await pool.query(getTalukasByDistrictQuery, [id]);
+      res.json(talukas.rows);
     } catch (error) {
       console.error("Error retrieving talukas:", error);
       res
@@ -30,11 +29,11 @@ const talukaController = {
   },
   getDeletedAll: async (req, res) => {
     try {
-      const [rows, fields] = await pool.query(
-        "SELECT t.*, d.name AS district_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.is_deleted = true and d.is_deleted = false"
-      );
+      const sql =
+        "SELECT t.*, d.name AS district_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.is_deleted = 1 AND d.is_deleted = 0";
+      const result = await pool.query(sql);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       res.json({
@@ -46,11 +45,10 @@ const talukaController = {
   getDeletedByDistrictId: async (req, res) => {
     try {
       const { id } = req.params;
-      const [rows, fields] = await pool.query(
-        "SELECT t.*, d.name AS district_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.is_deleted = true AND d.is_deleted = false AND t.district_id = ?",
-        [id]
-      );
-      res.json(rows);
+      const sql =
+        "SELECT t.*, d.name AS district_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.is_deleted = 1 AND d.is_deleted = 0 AND t.district_id = $1";
+      const result = await pool.query(sql, [id]);
+      res.json(result.rows);
     } catch (error) {
       res.json({
         status: "error",
@@ -61,12 +59,10 @@ const talukaController = {
   getById: async (req, res) => {
     try {
       const { id } = req.params;
-      const [rows, fields] = await pool.query(
-        `SELECT t.id, t.name, t.gu_name, d.name as district_name, d.id as district_id, d.gu_name as district_gu_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.id = ? AND t.is_deleted = false AND d.is_deleted = false;`,
-        [id]
-      );
+      const sql = `SELECT t.id, t.name, t.gu_name, d.name AS district_name, d.id AS district_id, d.gu_name AS district_gu_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.id = $1 AND t.is_deleted = 0 AND d.is_deleted = 0`;
+      const result = await pool.query(sql, [id]);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.log(error);
@@ -79,15 +75,15 @@ const talukaController = {
     try {
       const { name, gu_name, is_deleted, district_id } = req.body;
       const sql =
-        "INSERT INTO taluka (name, gu_name, is_deleted, district_id) VALUES (?, ?, ?, ?)";
-      const [rows, fields] = await pool.query(sql, [
+        "INSERT INTO taluka (name, gu_name, is_deleted, district_id) VALUES ($1, $2, $3, $4) RETURNING *";
+      const result = await pool.query(sql, [
         name,
         gu_name,
-        is_deleted,
+        is_deleted ? 1 : 0,
         district_id,
       ]);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.error(error);
@@ -102,22 +98,25 @@ const talukaController = {
       const { id } = req.params;
 
       const sql = `
-        UPDATE taluka t
-        SET t.name = ?, t.gu_name = ?, t.is_deleted = ?
-        WHERE t.id = ? AND t.is_deleted = false
-          AND EXISTS (SELECT 1 FROM district d WHERE d.id = ? AND d.is_deleted = false AND t.district_id = d.id)
-      `;
+            UPDATE taluka t
+            SET name = $1, gu_name = $2, is_deleted = $3
+            WHERE t.id = $4 AND t.is_deleted = 0
+                AND EXISTS (
+                    SELECT 1 FROM district d 
+                    WHERE d.id = $5 AND d.is_deleted = 0 AND t.district_id = d.id
+                )
+        `;
 
-      const [rows, fields] = await pool.query(sql, [
+      const result = await pool.query(sql, [
         name,
         gu_name,
-        is_deleted,
+        is_deleted ? 1 : 0,
         id,
         district_id,
       ]);
 
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.error(error);
@@ -129,12 +128,10 @@ const talukaController = {
   delete: async (req, res) => {
     try {
       const { id } = req.params;
-      const [rows, fields] = await pool.query(
-        "UPDATE taluka SET is_deleted = true WHERE id = ?",
-        [id]
-      );
+      const sql = "UPDATE taluka SET is_deleted = 1 WHERE id = $1";
+      const result = await pool.query(sql, [id]);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.log(error);
@@ -146,18 +143,19 @@ const talukaController = {
   restore: async (req, res) => {
     try {
       const { id } = req.params;
-  
-      const sql = `
-        UPDATE taluka t
-        SET t.is_deleted = false
-        WHERE t.id = ?
-          AND EXISTS (SELECT 1 FROM district d WHERE d.id = t.district_id AND d.is_deleted = false)
-      `;
-  
-      const [rows, fields] = await pool.query(sql, [id]);
-      
+
+      const sql = `UPDATE taluka
+                    SET is_deleted = 0
+                    WHERE id = $1
+                        AND EXISTS (
+                            SELECT 1 FROM district d 
+                            WHERE d.id = taluka.district_id AND d.is_deleted = 0
+                        );`;
+
+      const result = await pool.query(sql, [id]);
+
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.error(error);
@@ -169,11 +167,14 @@ const talukaController = {
   deletedLength: async (req, res) => {
     try {
       const { id } = req.params;
-      const [rows, fields] = await pool.query(
-        "SELECT COUNT(*) AS deletedTalukaCount FROM taluka WHERE is_deleted = true",
-        [id]
-      );
-      res.json(rows[0]);
+      const sql = `
+        SELECT COUNT(*) AS deletedtalukacount 
+        FROM taluka 
+        WHERE is_deleted = 1 
+          AND district_id = $1
+      `;
+      const result = await pool.query(sql, [id]);
+      res.json(result.rows[0]);
     } catch (error) {
       console.log(error);
       res.json({

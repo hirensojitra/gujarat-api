@@ -15,10 +15,9 @@ const districtController = {
   },
   getDeletedAll: async (req, res) => {
     try {
-      const [rows, fields] = await pool.query(
-        "SELECT * FROM district WHERE is_deleted = 1"
-      );
-      res.json(rows);
+      const sql = "SELECT * FROM district WHERE is_deleted = $1";
+      const result = await pool.query(sql, [1]);
+      res.json(result.rows);
     } catch (error) {
       res.json({
         status: "error",
@@ -29,11 +28,9 @@ const districtController = {
   getById: async (req, res) => {
     try {
       const { id } = req.params;
-      const [rows, fields] = await pool.query(
-        "SELECT * FROM district WHERE id = ? AND is_deleted = 0",
-        [id]
-      );
-      res.json(rows[0] || {});
+      const sql = "SELECT * FROM district WHERE id = $1 AND is_deleted = 0";
+      const result = await pool.query(sql, [id]);
+      res.json(result.rows[0] || {});
     } catch (error) {
       console.log(error);
       res.json({
@@ -84,12 +81,10 @@ const districtController = {
   delete: async (req, res) => {
     try {
       const { id } = req.params;
-      const [rows, fields] = await pool.query(
-        "UPDATE district SET is_deleted = 1 WHERE id = ?",
-        [id]
-      );
+      const sql = "UPDATE district SET is_deleted = 1 WHERE id = $1";
+      const result = await pool.query(sql, [id]);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.log(error);
@@ -102,12 +97,10 @@ const districtController = {
     try {
       const { id } = req.params;
       console.log(id);
-      const [rows, fields] = await pool.query(
-        "UPDATE district SET is_deleted = 0 WHERE id = ?",
-        [id]
-      );
+      const sql = "UPDATE district SET is_deleted = 0 WHERE id = $1";
+      const result = await pool.query(sql, [id]);
       res.json({
-        data: rows,
+        data: result.rows,
       });
     } catch (error) {
       console.log(error);
@@ -118,13 +111,11 @@ const districtController = {
   },
   deletedLength: async (req, res) => {
     try {
-      const { id } = req.params;
-      const [rows, fields] = await pool.query(
-        "SELECT COUNT(*) AS deletedDistrictsCount FROM district WHERE is_deleted = 1",
-        [id]
-      );
+      const sql =
+        "SELECT COUNT(*) AS deletedDistrictsCount FROM district WHERE is_deleted = 1";
+      const result = await pool.query(sql);
       res.json({
-        deletedDistrictCount: rows[0].deletedDistrictsCount,
+        deletedDistrictCount: result.rows[0].deleteddistrictscount,
       });
     } catch (error) {
       console.log(error);

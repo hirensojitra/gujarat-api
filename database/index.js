@@ -37,7 +37,7 @@ pool.connect((err, client, release) => {
         return console.error('Error acquiring client', err.stack);
     }
     console.log('Connected successfully');
-    release(); // Release the client back to the pool
+    // release(); // Release the client back to the pool
 });
 
 module.exports = pool;
