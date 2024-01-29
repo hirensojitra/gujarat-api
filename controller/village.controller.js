@@ -162,7 +162,7 @@ const villageController = {
           WHERE t.id = $7
           AND t.is_deleted = 0
           AND d.is_deleted = 0
-          AND v.taluka_id = t.id
+          AND taluka_id = t.id
       )
       
       `;
@@ -191,18 +191,15 @@ const villageController = {
     try {
       const { id } = req.params;
       const sql = `
-      UPDATE village v
-        SET v.is_deleted = 1
-        WHERE v.id = $1 AND v.is_deleted = 0
+      UPDATE village 
+        SET is_deleted = 1
+        WHERE id = $1 AND is_deleted = 0
         AND EXISTS (
             SELECT 1 FROM taluka t
             JOIN district d ON t.district_id = d.id
-            WHERE t.id = v.taluka_id AND t.is_deleted = 0 AND d.is_deleted = 0
-        )
-        `;
-
+            WHERE t.id = taluka_id AND t.is_deleted = 0 AND d.is_deleted = 0
+        )`;
       const result = await pool.query(sql, [id]);
-
       res.json({
         data: result.rows,
       });
@@ -218,13 +215,13 @@ const villageController = {
       const { id } = req.params;
 
       const sql = `
-            UPDATE village v
-            SET v.is_deleted = 0
-            WHERE v.id = $1
+            UPDATE village
+            SET is_deleted = 0
+            WHERE id = $1
             AND EXISTS (
                 SELECT 1 FROM taluka t
                 JOIN district d ON t.district_id = d.id
-                WHERE t.id = v.taluka_id AND t.is_deleted = 0 AND d.is_deleted = 0
+                WHERE t.id = taluka_id AND t.is_deleted = 0 AND d.is_deleted = 0
             )
         `;
 
