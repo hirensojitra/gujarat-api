@@ -16,7 +16,7 @@ const districtController = {
   getDeletedAll: async (req, res) => {
     try {
       const [rows, fields] = await pool.query(
-        "SELECT * FROM district WHERE is_deleted = true"
+        "SELECT * FROM district WHERE is_deleted = 1"
       );
       res.json(rows);
     } catch (error) {
@@ -30,7 +30,7 @@ const districtController = {
     try {
       const { id } = req.params;
       const [rows, fields] = await pool.query(
-        "SELECT * FROM district WHERE id = ? AND is_deleted = false",
+        "SELECT * FROM district WHERE id = ? AND is_deleted = 0",
         [id]
       );
       res.json(rows[0] || {});
@@ -46,7 +46,7 @@ const districtController = {
       const { name, gu_name, is_deleted } = req.body;
       const sql =
         "INSERT INTO district (name, gu_name, is_deleted) VALUES ($1, $2, $3) RETURNING *";
-      const result = await pool.query(sql, [name, gu_name, is_deleted]);
+      const result = await pool.query(sql, [name, gu_name, is_deleted ? 1 : 0]);
       res.json({
         data: result.rows,
       });
@@ -63,7 +63,12 @@ const districtController = {
       const { id } = req.params;
       const sql =
         "UPDATE district SET name = $1, gu_name = $2, is_deleted = $3 WHERE id = $4 AND is_deleted = 0";
-      const result = await pool.query(sql, [name, gu_name, is_deleted, id]);
+      const result = await pool.query(sql, [
+        name,
+        gu_name,
+        is_deleted ? 1 : 0,
+        id,
+      ]);
       res.json({
         success: true,
         data: result.rows,
@@ -80,7 +85,7 @@ const districtController = {
     try {
       const { id } = req.params;
       const [rows, fields] = await pool.query(
-        "UPDATE district SET is_deleted = true WHERE id = ?",
+        "UPDATE district SET is_deleted = 1 WHERE id = ?",
         [id]
       );
       res.json({
@@ -98,7 +103,7 @@ const districtController = {
       const { id } = req.params;
       console.log(id);
       const [rows, fields] = await pool.query(
-        "UPDATE district SET is_deleted = false WHERE id = ?",
+        "UPDATE district SET is_deleted = 0 WHERE id = ?",
         [id]
       );
       res.json({
@@ -115,7 +120,7 @@ const districtController = {
     try {
       const { id } = req.params;
       const [rows, fields] = await pool.query(
-        "SELECT COUNT(*) AS deletedDistrictsCount FROM district WHERE is_deleted = true",
+        "SELECT COUNT(*) AS deletedDistrictsCount FROM district WHERE is_deleted = 1",
         [id]
       );
       res.json({
