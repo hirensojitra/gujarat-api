@@ -117,12 +117,12 @@ const authController = {
       const params = [];
 
       if (firstName) {
-        updateFields.push("firstName = $1");
+        updateFields.push("firstname = $1");
         params.push(firstName);
       }
 
       if (lastName) {
-        updateFields.push("lastName = $2");
+        updateFields.push("lastname = $2");
         params.push(lastName);
       }
 
