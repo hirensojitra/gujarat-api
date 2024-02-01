@@ -60,7 +60,6 @@ const postController = {
   },
   updateData: async (req, res) => {
     try {
-      
       const {
         id,
         type,
@@ -71,7 +70,6 @@ const postController = {
         text_group,
         details,
       } = req.body;
-      console.log(req.body)
       // Construct the SQL UPDATE statement
       const updateQuery = `
             UPDATE post_data
