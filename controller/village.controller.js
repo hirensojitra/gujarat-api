@@ -91,7 +91,6 @@ const villageController = {
   getById: async (req, res) => {
     try {
       const { id } = req.params;
-
       const sql = `
           SELECT v.id, v.name, v.gu_name, t.name AS taluka_name, t.id AS taluka_id, t.gu_name AS taluka_gu_name, d.name AS district_name, d.id AS district_id, d.gu_name AS district_gu_name
           FROM village v
@@ -99,9 +98,7 @@ const villageController = {
           JOIN district d ON v.district_id = d.id
           WHERE v.id = $1 AND v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0
       `;
-
       const result = await pool.query(sql, [id]);
-
       res.json({
         data: result.rows[0],
       });
