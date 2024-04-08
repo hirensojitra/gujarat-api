@@ -19,23 +19,23 @@ const postController = {
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
-    // Add new post
-    // Add new post
     addPost: async (req, res) => {
-        console.log(res)
         try {
             // Destructure the request body to get the data to insert
-            const { deleted, h, w, title, backgroundUrl, data } = req.body;
+            const { deleted, h, w, title, backgroundurl, data } = req.body;
+
+            // Convert the data array to JSONB format
+            const jsonData = JSON.stringify(data);
 
             // Construct the SQL INSERT statement with RETURNING clause to get the ID
             const insertQuery = `
-            INSERT INTO post_details (deleted, h, w, title, backgroundUrl, data)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id
-        `;
+                INSERT INTO post_details (deleted, h, w, title, backgroundurl, data)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id
+            `;
 
             // Execute the INSERT statement and extract the ID of the newly added data
-            const { rows } = await pool.query(insertQuery, [deleted, h, w, title, backgroundUrl, data]);
+            const { rows } = await pool.query(insertQuery, [deleted, h, w, title, backgroundurl, jsonData]);
             const newPostId = rows[0].id;
 
             // Send the ID of the newly added data as a string in the response
@@ -45,8 +45,7 @@ const postController = {
             console.error("Error adding post:", error);
             res.status(500).json({ error: "Internal server error" });
         }
-    }
-    ,
+    },
     // Update post details
     updateData: async (req, res) => {
         try {
@@ -56,10 +55,12 @@ const postController = {
                 h,
                 w,
                 title,
-                backgroundUrl,
+                backgroundurl,
                 data
             } = req.body;
 
+            // Convert the data array to JSONB format
+            const jsonData = JSON.stringify(data);
             // Construct the SQL UPDATE statement
             const updateQuery = `
         UPDATE post_details
@@ -68,19 +69,18 @@ const postController = {
             h = $2,
             w = $3,
             title = $4,
-            backgroundUrl = $5,
+            backgroundurl = $5,
             data = $6
         WHERE id = $7
       `;
-
             // Execute the UPDATE statement
             await pool.query(updateQuery, [
                 deleted,
                 h,
                 w,
                 title,
-                backgroundUrl,
-                data,
+                backgroundurl,
+                jsonData,
                 id
             ]);
 
