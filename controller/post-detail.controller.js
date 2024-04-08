@@ -20,28 +20,33 @@ const postController = {
         }
     },
     // Add new post
+    // Add new post
     addPost: async (req, res) => {
+        console.log(res)
         try {
             // Destructure the request body to get the data to insert
             const { deleted, h, w, title, backgroundUrl, data } = req.body;
 
-            // Construct the SQL INSERT statement
+            // Construct the SQL INSERT statement with RETURNING clause to get the ID
             const insertQuery = `
-        INSERT INTO post_details (deleted, h, w, title, backgroundUrl, data)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `;
+            INSERT INTO post_details (deleted, h, w, title, backgroundUrl, data)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+        `;
 
-            // Execute the INSERT statement
-            await pool.query(insertQuery, [deleted, h, w, title, backgroundUrl, data]);
+            // Execute the INSERT statement and extract the ID of the newly added data
+            const { rows } = await pool.query(insertQuery, [deleted, h, w, title, backgroundUrl, data]);
+            const newPostId = rows[0].id;
 
-            // Send a success response
-            res.status(201).json({ message: "Post added successfully" });
+            // Send the ID of the newly added data as a string in the response
+            res.status(201).json({ id: newPostId, message: "Post added successfully" });
         } catch (error) {
             // Handle any errors
             console.error("Error adding post:", error);
             res.status(500).json({ error: "Internal server error" });
         }
-    },
+    }
+    ,
     // Update post details
     updateData: async (req, res) => {
         try {
