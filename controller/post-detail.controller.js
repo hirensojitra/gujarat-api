@@ -8,9 +8,10 @@ const postController = {
             const offset = (page - 1) * pageSize;
             const query = `
                 SELECT * FROM post_details
+                WHERE deleted = false
                 ORDER BY id
                 OFFSET $1
-                LIMIT $2
+                LIMIT $2;            
             `;
             const { rows } = await pool.query(query, [offset, pageSize]);
             res.json(rows);
@@ -71,7 +72,7 @@ const postController = {
             title = $4,
             backgroundurl = $5,
             data = $6
-        WHERE id = $7
+        WHERE id = $7 and deleted = false
       `;
             // Execute the UPDATE statement
             await pool.query(updateQuery, [
@@ -98,7 +99,7 @@ const postController = {
             const { id } = req.params;
             const query = `
         SELECT * FROM post_details
-        WHERE id = $1
+        WHERE id = $1 AND deleted = false
       `;
             const { rows } = await pool.query(query, [id]);
             if (rows.length === 0) {
@@ -126,13 +127,28 @@ const postController = {
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
+    recoverData: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const query = `
+        UPDATE post_details
+        SET deleted = false
+        WHERE id = $1
+      `;
+            await pool.query(query, [id]);
+            res.json({ message: "Restored successfully" });
+        } catch (error) {
+            console.error("Error restore data:", error);
+            res.status(500).json({ error: "Internal Server Error" });
+        }
+    },
     // Hard delete post data by ID
     hardDeleteData: async (req, res) => {
         try {
             const { id } = req.params;
             const query = `
         DELETE FROM post_details
-        WHERE id = $1
+        WHERE id = $1 and deleted = true
       `;
             await pool.query(query, [id]);
             res.json({ message: "Data hard deleted successfully" });
