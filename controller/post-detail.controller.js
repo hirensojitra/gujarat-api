@@ -28,16 +28,18 @@ const postController = {
             // Convert the data array to JSONB format
             const jsonData = JSON.stringify(data);
 
+            // Generate a random ID
+            const newPostId = Math.random().toString(36).substr(2, 9);
+
             // Construct the SQL INSERT statement with RETURNING clause to get the ID
             const insertQuery = `
-                INSERT INTO post_details (deleted, h, w, title, backgroundurl, data)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO post_details (id, deleted, h, w, title, backgroundurl, data)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id
             `;
 
             // Execute the INSERT statement and extract the ID of the newly added data
-            const { rows } = await pool.query(insertQuery, [deleted, h, w, title, backgroundurl, jsonData]);
-            const newPostId = rows[0].id;
+            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, backgroundurl, jsonData]);
 
             // Send the ID of the newly added data as a string in the response
             res.status(201).json({ id: newPostId, message: "Post added successfully" });
