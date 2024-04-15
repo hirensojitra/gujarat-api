@@ -23,7 +23,7 @@ const postController = {
     addPost: async (req, res) => {
         try {
             // Destructure the request body to get the data to insert
-            const { deleted, h, w, title, backgroundurl, data } = req.body;
+            const { deleted, h, w, title, info, backgroundurl, data } = req.body;
 
             // Convert the data array to JSONB format
             const jsonData = JSON.stringify(data);
@@ -33,13 +33,13 @@ const postController = {
 
             // Construct the SQL INSERT statement with RETURNING clause to get the ID
             const insertQuery = `
-                INSERT INTO post_details (id, deleted, h, w, title, backgroundurl, data)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO post_details (id, deleted, h, w, title, info, backgroundurl, data)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8 )
                 RETURNING id
             `;
 
             // Execute the INSERT statement and extract the ID of the newly added data
-            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, backgroundurl, jsonData]);
+            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, backgroundurl, jsonData]);
 
             // Send the ID of the newly added data as a string in the response
             res.status(201).json({ id: newPostId, message: "Post added successfully" });
@@ -58,6 +58,7 @@ const postController = {
                 h,
                 w,
                 title,
+                info, 
                 backgroundurl,
                 data
             } = req.body;
@@ -72,9 +73,10 @@ const postController = {
             h = $2,
             w = $3,
             title = $4,
-            backgroundurl = $5,
-            data = $6
-        WHERE id = $7 and deleted = false
+            info = $5, 
+            backgroundurl = $6,
+            data = $7
+        WHERE id = $8 and deleted = false
       `;
             // Execute the UPDATE statement
             await pool.query(updateQuery, [
@@ -82,6 +84,7 @@ const postController = {
                 h,
                 w,
                 title,
+                info,
                 backgroundurl,
                 jsonData,
                 id
