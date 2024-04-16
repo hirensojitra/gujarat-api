@@ -236,7 +236,6 @@ const postController = {
                 return res.status(404).json({ error: "Data not found" });
             }
             const currentCounter = rows[0].download_counter;
-            console.log(currentCounter);
             const newCounter = currentCounter + 1;
             const updateQuery = `UPDATE post_details SET download_counter = $1 WHERE id = $2`;
             await pool.query(updateQuery, [newCounter, id]);
