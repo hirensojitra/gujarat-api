@@ -11,6 +11,8 @@ router.delete("/hard-delete/:id", postController.hardDeleteData);
 router.get("/soft-deleted/", postController.getAllSoftDeletedData);
 router.get("/post-length/", postController.getPostLength);
 router.get("/post-deleted-length/", postController.getDeletedPostLength);
+router.get("/download-counter/:id", postController.getDownloadCounter);
+router.get("/update-download-counter/:id", postController.getDownloadCounter);
 router.post('/', postController.addPost);
 
 module.exports = router;

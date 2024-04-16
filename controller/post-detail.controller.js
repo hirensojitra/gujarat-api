@@ -58,7 +58,7 @@ const postController = {
                 h,
                 w,
                 title,
-                info, 
+                info,
                 backgroundurl,
                 data
             } = req.body;
@@ -212,6 +212,41 @@ const postController = {
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
+    getDownloadCounter: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const query = `SELECT download_counter FROM post_details WHERE id = $1 and deleted = false
+      `;
+            const result = await pool.query(query, [id]);
+            if (result.rows.length > 0) {
+                return result.rows[0].download_counter;
+            } else {
+                throw new Error('Post not found');
+            }
+        } catch (error) {
+            console.error("Post not found:", error);
+            res.status(500).json({ error: "Internal Server Error" });
+        }
+    },
+    updateDownloadCounter: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const currentCounter = await getDownloadCounter(id); // Assuming you have a method to get the current download counter
+
+            // Increment the current counter by 1
+            const newCounter = currentCounter + 1;
+
+            // Update the download counter in the database
+            const updateQuery = `UPDATE post_details SET download_counter = $1 WHERE id = $2`;
+            await pool.query(updateQuery, [newCounter, id]);
+
+            // Return the updated counter value
+            res.json({ download_counter: newCounter });
+        } catch (error) {
+            console.error("Error updating download counter:", error);
+            res.status(500).json({ error: "Internal Server Error" });
+        }
+    }
 
 };
 
