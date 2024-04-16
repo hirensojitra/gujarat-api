@@ -33,13 +33,13 @@ const postController = {
 
             // Construct the SQL INSERT statement with RETURNING clause to get the ID
             const insertQuery = `
-                INSERT INTO post_details (id, deleted, h, w, title, info, backgroundurl, data)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8 )
+                INSERT INTO post_details (id, deleted, h, w, title, info, backgroundurl, data, download_counter)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8, $9 )
                 RETURNING id
             `;
 
             // Execute the INSERT statement and extract the ID of the newly added data
-            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, backgroundurl, jsonData]);
+            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, backgroundurl, jsonData, 0]);
 
             // Send the ID of the newly added data as a string in the response
             res.status(201).json({ id: newPostId, message: "Post added successfully" });
