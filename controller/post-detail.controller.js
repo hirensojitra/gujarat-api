@@ -215,14 +215,12 @@ const postController = {
     getDownloadCounter: async (req, res) => {
         try {
             const { id } = req.params;
-            const query = `SELECT download_counter FROM post_details WHERE id = $1 and deleted = false
-      `;
-            const result = await pool.query(query, [id]);
-            if (result.rows.length > 0) {
-                return result.rows[0].download_counter;
-            } else {
-                throw new Error('Post not found');
+            const query = `SELECT download_counter FROM post_details WHERE id = $1 and deleted = false`;
+            const { rows } = await pool.query(query, [id]);
+            if (rows.length === 0) {
+                return res.status(404).json({ error: "Data not found" });
             }
+            res.json(rows[0]);
         } catch (error) {
             console.error("Post not found:", error);
             res.status(500).json({ error: "Internal Server Error" });
@@ -231,22 +229,25 @@ const postController = {
     updateDownloadCounter: async (req, res) => {
         try {
             const { id } = req.params;
-            const currentCounter = await getDownloadCounter(id); // Assuming you have a method to get the current download counter
-
-            // Increment the current counter by 1
+            // Retrieve the current download counter directly through a SQL query
+            const query = `SELECT download_counter FROM post_details WHERE id = $1 and deleted = false`;
+            const { rows } = await pool.query(query, [id]);
+            if (rows.length === 0) {
+                return res.status(404).json({ error: "Data not found" });
+            }
+            const currentCounter = rows[0].download_counter;
+            console.log(currentCounter);
             const newCounter = currentCounter + 1;
-
-            // Update the download counter in the database
             const updateQuery = `UPDATE post_details SET download_counter = $1 WHERE id = $2`;
             await pool.query(updateQuery, [newCounter, id]);
-
-            // Return the updated counter value
             res.json({ download_counter: newCounter });
         } catch (error) {
             console.error("Error updating download counter:", error);
             res.status(500).json({ error: "Internal Server Error" });
         }
     }
+
+
 
 };
 
