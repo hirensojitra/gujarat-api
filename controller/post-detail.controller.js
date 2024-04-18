@@ -22,26 +22,15 @@ const postController = {
     },
     addPost: async (req, res) => {
         try {
-            // Destructure the request body to get the data to insert
-            const { deleted, h, w, title, info, backgroundurl, data } = req.body;
-
-            // Convert the data array to JSONB format
+            const { deleted, h, w, title, info, backgroundurl, data, download_counter } = req.body;
             const jsonData = JSON.stringify(data);
-
-            // Generate a random ID
             const newPostId = Math.random().toString(36).substr(2, 9);
-
-            // Construct the SQL INSERT statement with RETURNING clause to get the ID
             const insertQuery = `
                 INSERT INTO post_details (id, deleted, h, w, title, info, backgroundurl, data, download_counter)
                 VALUES ($1, $2, $3, $4, $5, $6, $7,$8, $9 )
                 RETURNING id
             `;
-
-            // Execute the INSERT statement and extract the ID of the newly added data
-            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, backgroundurl, jsonData, 0]);
-
-            // Send the ID of the newly added data as a string in the response
+            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, backgroundurl, jsonData, download_counter]);
             res.status(201).json({ id: newPostId, message: "Post added successfully" });
         } catch (error) {
             // Handle any errors
@@ -99,18 +88,44 @@ const postController = {
         }
     },
     // Get post details by ID
+    // getDataById: async (req, res) => {
+    //     try {
+    //         const { id } = req.params;
+    //         const query = `
+    //     SELECT * FROM post_details
+    //     WHERE id = $1 AND deleted = false
+    //   `;
+    //         const { rows } = await pool.query(query, [id]);
+    //         if (rows.length === 0) {
+    //             return res.status(404).json({ error: "Data not found" });
+    //         }
+    //         res.json(rows[0]);
+    //     } catch (error) {
+    //         console.error("Error retrieving data:", error);
+    //         res.status(500).json({ error: "Internal Server Error" });
+    //     }
+    // },
     getDataById: async (req, res) => {
         try {
             const { id } = req.params;
             const query = `
-        SELECT * FROM post_details
-        WHERE id = $1 AND deleted = false
-      `;
+                SELECT * FROM post_details
+                WHERE id = $1
+            `;
             const { rows } = await pool.query(query, [id]);
             if (rows.length === 0) {
                 return res.status(404).json({ error: "Data not found" });
             }
-            res.json(rows[0]);
+            const post = rows[0];
+            if (post.deleted) {
+                return res.json({
+                    id: + post.id,
+                    deleted: true,
+                    msg: "This link is expired. Total downloads were " + post.download_counter
+                }
+                );
+            }
+            res.json(post);
         } catch (error) {
             console.error("Error retrieving data:", error);
             res.status(500).json({ error: "Internal Server Error" });
