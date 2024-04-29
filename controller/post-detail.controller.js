@@ -22,15 +22,15 @@ const postController = {
     },
     addPost: async (req, res) => {
         try {
-            const { deleted, h, w, title, info, backgroundurl, data, download_counter } = req.body;
+            const { deleted, h, w, title, info, info_show, backgroundurl, data, download_counter } = req.body;
             const jsonData = JSON.stringify(data);
             const newPostId = Math.random().toString(36).substr(2, 9);
             const insertQuery = `
-                INSERT INTO post_details (id, deleted, h, w, title, info, backgroundurl, data, download_counter)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8, $9 )
+                INSERT INTO post_details (id, deleted, h, w, title, info, info_show, backgroundurl, data, download_counter)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8, $9,$10 )
                 RETURNING id
             `;
-            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, backgroundurl, jsonData, download_counter]);
+            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, info_show, backgroundurl, jsonData, download_counter]);
             res.status(201).json({ id: newPostId, message: "Post added successfully" });
         } catch (error) {
             // Handle any errors
@@ -47,7 +47,7 @@ const postController = {
                 h,
                 w,
                 title,
-                info,
+                info, info_show,
                 backgroundurl,
                 data
             } = req.body;
@@ -63,9 +63,10 @@ const postController = {
             w = $3,
             title = $4,
             info = $5, 
-            backgroundurl = $6,
-            data = $7
-        WHERE id = $8 and deleted = false
+            info_show = $6, 
+            backgroundurl = $7,
+            data = $8
+        WHERE id = $9 and deleted = false
       `;
             // Execute the UPDATE statement
             await pool.query(updateQuery, [
@@ -73,7 +74,7 @@ const postController = {
                 h,
                 w,
                 title,
-                info,
+                info, info_show,
                 backgroundurl,
                 jsonData,
                 id
