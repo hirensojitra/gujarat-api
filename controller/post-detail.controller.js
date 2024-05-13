@@ -9,7 +9,7 @@ const postController = {
             const query = `
                 SELECT * FROM post_details
                 WHERE deleted = false
-                ORDER BY id
+                ORDER BY created_at DESC
                 OFFSET $1
                 LIMIT $2;            
             `;
@@ -22,90 +22,48 @@ const postController = {
     },
     addPost: async (req, res) => {
         try {
-            const { deleted, h, w, title, info, info_show, backgroundurl, data, download_counter } = req.body;
+            const { h, w, title, info, info_show, backgroundurl, data, download_counter } = req.body;
             const jsonData = JSON.stringify(data);
+            const currentUTC = new Date().toISOString();
+            const currentIST = new Date(currentUTC).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
             const newPostId = Math.random().toString(36).substr(2, 9);
             const insertQuery = `
-                INSERT INTO post_details (id, deleted, h, w, title, info, info_show, backgroundurl, data, download_counter)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8, $9,$10 )
+                INSERT INTO post_details (deleted, h, w, title, info, info_show, backgroundurl, data, download_counter, created_at, updated_at,id)
+                VALUES (false, $1, $2, $3, $4, $5, $6, $7, $8, $9, $9,$10)
                 RETURNING id
             `;
-            const { rows } = await pool.query(insertQuery, [newPostId, deleted, h, w, title, info, info_show, backgroundurl, jsonData, download_counter]);
-            res.status(201).json({ id: newPostId, message: "Post added successfully" });
+            const { rows } = await pool.query(insertQuery, [h, w, title, info, info_show, backgroundurl, jsonData, download_counter, currentIST, newPostId]);
+            res.status(201).json({ id: rows[0].id, message: "Post added successfully" });
         } catch (error) {
-            // Handle any errors
             console.error("Error adding post:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     },
-    // Update post details
     updateData: async (req, res) => {
         try {
-            const {
-                id,
-                deleted,
-                h,
-                w,
-                title,
-                info, info_show,
-                backgroundurl,
-                data
-            } = req.body;
-
-            // Convert the data array to JSONB format
+            const { id, h, w, title, info, info_show, backgroundurl, data } = req.body;
             const jsonData = JSON.stringify(data);
-            // Construct the SQL UPDATE statement
+            const currentUTC = new Date().toISOString();
+            const currentIST = new Date(currentUTC).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
             const updateQuery = `
-        UPDATE post_details
-        SET 
-            deleted = $1,
-            h = $2,
-            w = $3,
-            title = $4,
-            info = $5, 
-            info_show = $6, 
-            backgroundurl = $7,
-            data = $8
-        WHERE id = $9 and deleted = false
-      `;
-            // Execute the UPDATE statement
-            await pool.query(updateQuery, [
-                deleted,
-                h,
-                w,
-                title,
-                info, info_show,
-                backgroundurl,
-                jsonData,
-                id
-            ]);
-
-            // Send a success response
+                UPDATE post_details
+                SET h = $1,
+                    w = $2,
+                    title = $3,
+                    info = $4,
+                    info_show = $5,
+                    backgroundurl = $6,
+                    data = $7,
+                    updated_at = $8
+                WHERE id = $9
+            `;
+            await pool.query(updateQuery, [h, w, title, info, info_show, backgroundurl, jsonData, currentIST, id]);
             res.status(200).json({ message: "Post data updated successfully" });
         } catch (error) {
-            // Handle any errors
             console.error("Error updating post data:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     },
-    // Get post details by ID
-    // getDataById: async (req, res) => {
-    //     try {
-    //         const { id } = req.params;
-    //         const query = `
-    //     SELECT * FROM post_details
-    //     WHERE id = $1 AND deleted = false
-    //   `;
-    //         const { rows } = await pool.query(query, [id]);
-    //         if (rows.length === 0) {
-    //             return res.status(404).json({ error: "Data not found" });
-    //         }
-    //         res.json(rows[0]);
-    //     } catch (error) {
-    //         console.error("Error retrieving data:", error);
-    //         res.status(500).json({ error: "Internal Server Error" });
-    //     }
-    // },
     getDataById: async (req, res) => {
         try {
             const { id } = req.params;
@@ -117,31 +75,24 @@ const postController = {
             if (rows.length === 0) {
                 return res.status(404).json({ error: "Data not found" });
             }
-            const post = rows[0];
-            if (post.deleted) {
-                return res.json({
-                    id: + post.id,
-                    deleted: true,
-                    msg: "This link is expired. Total downloads were " + post.download_counter
-                }
-                );
-            }
-            res.json(post);
+            res.json(rows[0]);
         } catch (error) {
             console.error("Error retrieving data:", error);
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
-    // Soft delete post data by ID
     softDeleteData: async (req, res) => {
         try {
             const { id } = req.params;
+            const currentUTC = new Date().toISOString();
+            const currentIST = new Date(currentUTC).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
             const query = `
-        UPDATE post_details
-        SET deleted = true
-        WHERE id = $1
-      `;
-            await pool.query(query, [id]);
+                UPDATE post_details
+                SET deleted_at = $1,
+                deleted = true
+                WHERE id = $2
+            `;
+            await pool.query(query, [currentIST, id]);
             res.json({ message: "Data soft deleted successfully" });
         } catch (error) {
             console.error("Error soft deleting data:", error);
@@ -152,25 +103,25 @@ const postController = {
         try {
             const { id } = req.params;
             const query = `
-        UPDATE post_details
-        SET deleted = false
-        WHERE id = $1
-      `;
+                UPDATE post_details
+                SET deleted_at = NULL,
+                deleted = false
+                WHERE id = $1
+            `;
             await pool.query(query, [id]);
             res.json({ message: "Restored successfully" });
         } catch (error) {
-            console.error("Error restore data:", error);
+            console.error("Error restoring data:", error);
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
-    // Hard delete post data by ID
     hardDeleteData: async (req, res) => {
         try {
             const { id } = req.params;
             const query = `
-        DELETE FROM post_details
-        WHERE id = $1 and deleted = true
-      `;
+                DELETE FROM post_details
+                WHERE id = $1
+            `;
             await pool.query(query, [id]);
             res.json({ message: "Data hard deleted successfully" });
         } catch (error) {
@@ -178,7 +129,6 @@ const postController = {
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
-    // Get all soft deleted post data
     getAllSoftDeletedData: async (req, res) => {
         try {
             const { page } = req.query;
@@ -187,7 +137,7 @@ const postController = {
             const query = `
         SELECT * FROM post_details
         WHERE deleted = true
-        ORDER BY id
+        ORDER BY deleted_at DESC
         OFFSET $1
         LIMIT $2
       `;
@@ -198,13 +148,12 @@ const postController = {
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
-    // Get total length of non-soft deleted post data
     getPostLength: async (req, res) => {
         try {
             const query = `
-        SELECT COUNT(*) AS total_count FROM post_details
-        WHERE deleted = false
-      `;
+                SELECT COUNT(*) AS total_count FROM post_details
+                WHERE deleted = false
+            `;
             const { rows } = await pool.query(query);
             const totalCount = parseInt(rows[0].total_count);
             res.json({ totalLength: totalCount });
@@ -213,13 +162,12 @@ const postController = {
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
-    // Get total length of soft deleted post data
     getDeletedPostLength: async (req, res) => {
         try {
             const query = `
-        SELECT COUNT(*) AS total_count FROM post_details
-        WHERE deleted = true
-      `;
+                SELECT COUNT(*) AS total_count FROM post_details
+                WHERE deleted = true
+            `;
             const { rows } = await pool.query(query);
             const totalCount = parseInt(rows[0].total_count);
             res.json({ totalLength: totalCount });
@@ -231,39 +179,37 @@ const postController = {
     getDownloadCounter: async (req, res) => {
         try {
             const { id } = req.params;
-            const query = `SELECT download_counter FROM post_details WHERE id = $1 and deleted = false`;
+            const query = `SELECT download_counter FROM post_details WHERE id = $1`;
             const { rows } = await pool.query(query, [id]);
             if (rows.length === 0) {
                 return res.status(404).json({ error: "Data not found" });
             }
             res.json(rows[0]);
         } catch (error) {
-            console.error("Post not found:", error);
+            console.error("Error retrieving download counter:", error);
             res.status(500).json({ error: "Internal Server Error" });
         }
     },
     updateDownloadCounter: async (req, res) => {
         try {
             const { id } = req.params;
-            // Retrieve the current download counter directly through a SQL query
-            const query = `SELECT download_counter FROM post_details WHERE id = $1 and deleted = false`;
+            const currentUTC = new Date().toISOString();
+            const currentIST = new Date(currentUTC).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+            const query = `SELECT download_counter FROM post_details WHERE id = $1`;
             const { rows } = await pool.query(query, [id]);
             if (rows.length === 0) {
                 return res.status(404).json({ error: "Data not found" });
             }
             const currentCounter = rows[0].download_counter;
             const newCounter = currentCounter + 1;
-            const updateQuery = `UPDATE post_details SET download_counter = $1 WHERE id = $2`;
-            await pool.query(updateQuery, [newCounter, id]);
+            const updateQuery = `UPDATE post_details SET download_counter = $1, updated_at = $2 WHERE id = $3`;
+            await pool.query(updateQuery, [newCounter, currentIST, id]);
             res.json({ download_counter: newCounter });
         } catch (error) {
             console.error("Error updating download counter:", error);
             res.status(500).json({ error: "Internal Server Error" });
         }
     }
-
-
-
 };
 
 module.exports = postController;
