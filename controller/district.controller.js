@@ -2,7 +2,7 @@ const pool = require("../database/index");
 const districtController = {
   getAll: async (req, res) => {
     try {
-      const query = "SELECT * FROM district WHERE is_deleted = 0";
+      const query = "SELECT * FROM district WHERE is_deleted = 0 ORDER BY name ASC";
       const { rows } = await pool.query(query);
       res.json(rows);
     } catch (error) {

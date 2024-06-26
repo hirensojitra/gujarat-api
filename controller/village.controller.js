@@ -31,7 +31,8 @@ const villageController = {
             FROM village v
             JOIN taluka t ON v.taluka_id = t.id
             JOIN district d ON v.district_id = d.id
-            WHERE v.taluka_id = $1 AND v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0;
+            WHERE v.taluka_id = $1 AND v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0
+            ORDER BY v.name ASC;
         `;
       const villages = await pool.query(getVillagesByTaluka, [id]);
 

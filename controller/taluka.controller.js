@@ -17,7 +17,7 @@ const talukaController = {
   getByDistrictId: async (req, res) => {
     try {
       const { id } = req.params;
-      const getTalukasByDistrictQuery = `SELECT t.id, t.name, t.gu_name, d.name as district_name, d.id as district_id, d.gu_name as district_gu_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.district_id = $1 AND t.is_deleted = 0 AND d.is_deleted = 0`;
+      const getTalukasByDistrictQuery = `SELECT t.id, t.name, t.gu_name, d.name as district_name, d.id as district_id, d.gu_name as district_gu_name FROM taluka t JOIN district d ON t.district_id = d.id WHERE t.district_id = $1 AND t.is_deleted = 0 AND d.is_deleted = 0 ORDER BY t.name ASC`;
       const talukas = await pool.query(getTalukasByDistrictQuery, [id]);
       res.json(talukas.rows);
     } catch (error) {
