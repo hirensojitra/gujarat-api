@@ -5,7 +5,11 @@ const jwt = require("jsonwebtoken");
 const authController = {
   register: async (req, res) => {
     try {
-      const { email, password, username } = req.body;
+      const email = req.body.email.trim();
+      const password = req.body.password.trim();
+      const username = req.body.username.trim();
+      const roles = req.body.roles.map(role => role.trim()).join(', ');
+      const emailVerified = req.body.emailVerified !== undefined ? req.body.emailVerified : false;
 
       const userQuery = `
             SELECT * FROM users WHERE email = $1 OR username = $2
@@ -20,9 +24,9 @@ const authController = {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const insertUserQuery = `
-            INSERT INTO users (email, password, username) VALUES ($1, $2, $3)
+            INSERT INTO users (email, password, username, roles, emailVerified) VALUES ($1, $2, $3, $4, $5)
         `;
-      const insertUserResult = await pool.query(insertUserQuery, [email, hashedPassword, username]);
+      const insertUserResult = await pool.query(insertUserQuery, [email, hashedPassword, username, roles, emailVerified]);
 
       if (insertUserResult.rowCount > 0) {
         return res.json({ success: true, user: { email, username } });
@@ -33,24 +37,37 @@ const authController = {
       console.error(error);
       res.json({ error: error.message });
     }
-  },
+  }
+  ,
 
   login: async (req, res) => {
     try {
+      const hashedPassword = '$2b$10$OXuM6XDYpGxpbJB7CIUUx.PO.wsEFWdt8tu3JKCp7JyXrVMKdFDdy';
+
+      // The plain password you want to compare
+      const plainPassword = 'S@jitra95';
+
+      // Compare the password with the hash
+      bcrypt.compare(plainPassword, hashedPassword, function (err, result) {
+        if (result) {
+          console.log('Password matches!');
+        } else {
+          console.log('Password does not match.');
+        }
+      });
       const { username, password } = req.body;
 
       const userQuery = `
             SELECT * FROM users WHERE username = $1
         `;
       const userResult = await pool.query(userQuery, [username]);
+      console.log(userResult)
       const user = userResult.rows[0];
 
       if (!user) {
         return res.json({ error: "Invalid username!" });
       }
-
       const passwordMatch = await bcrypt.compare(password, user.password);
-
       if (passwordMatch) {
         const accessToken = jwt.sign(
           { userId: user.id },
@@ -59,9 +76,7 @@ const authController = {
             expiresIn: "1h",
           }
         );
-
         const userData = { ...user, password: undefined };
-
         return res.json({
           token: accessToken,
           user: userData,
