@@ -42,26 +42,12 @@ const authController = {
 
   login: async (req, res) => {
     try {
-      const hashedPassword = '$2b$10$OXuM6XDYpGxpbJB7CIUUx.PO.wsEFWdt8tu3JKCp7JyXrVMKdFDdy';
-
-      // The plain password you want to compare
-      const plainPassword = 'S@jitra95';
-
-      // Compare the password with the hash
-      bcrypt.compare(plainPassword, hashedPassword, function (err, result) {
-        if (result) {
-          console.log('Password matches!');
-        } else {
-          console.log('Password does not match.');
-        }
-      });
       const { username, password } = req.body;
 
       const userQuery = `
             SELECT * FROM users WHERE username = $1
         `;
       const userResult = await pool.query(userQuery, [username]);
-      console.log(userResult)
       const user = userResult.rows[0];
 
       if (!user) {
