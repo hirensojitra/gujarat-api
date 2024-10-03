@@ -10,24 +10,15 @@ const authController = {
       const username = req.body.username.trim();
       const roles = req.body.roles.map(role => role.trim()).join(', ');
       const emailVerified = req.body.emailVerified !== undefined ? req.body.emailVerified : false;
-
-      const userQuery = `
-            SELECT * FROM users WHERE email = $1 OR username = $2
-        `;
+      const userQuery = `SELECT * FROM users WHERE email = $1 OR username = $2`;
       const userResult = await pool.query(userQuery, [email, username]);
       const existingUser = userResult.rows[0];
-
       if (existingUser) {
         return res.json({ error: "Email or username already exists!" });
       }
-
       const hashedPassword = await bcrypt.hash(password, 10);
-
-      const insertUserQuery = `
-            INSERT INTO users (email, password, username, roles, emailVerified) VALUES ($1, $2, $3, $4, $5)
-        `;
+      const insertUserQuery = `INSERT INTO users (email, password, username, roles, emailVerified) VALUES ($1, $2, $3, $4, $5)`;
       const insertUserResult = await pool.query(insertUserQuery, [email, hashedPassword, username, roles, emailVerified]);
-
       if (insertUserResult.rowCount > 0) {
         return res.json({ success: true, user: { email, username } });
       } else {

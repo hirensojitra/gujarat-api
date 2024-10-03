@@ -28,7 +28,7 @@ const upload = multer({ storage: storage });
 // Controller: Create a new folder and its associated table in the database
 exports.createFolder = async (req, res) => {
     const { folderName } = req.body;
-    
+
     try {
         // Insert folder into folders table
         const folderInsert = await pool.query('INSERT INTO folders (name) VALUES ($1) RETURNING id', [folderName]);
@@ -192,18 +192,32 @@ exports.getImageData = async (req, res) => {
 
         // Handle format
         if (format) {
-            switch (format) {
+            switch (format.toLowerCase()) {
                 case 'png':
                     image = image.png();
                     break;
                 case 'webp':
                     image = image.webp();
                     break;
-                // Add more formats as needed
-                default:
+                case 'jpeg':
+                case 'jpg':
+                    image = image.jpeg();
                     break;
+                case 'gif':
+                    image = image.gif();
+                    break;
+                case 'tiff':
+                case 'tif':
+                    image = image.tiff();
+                    break;
+                case 'bmp':
+                    image = image.bmp();
+                    break;
+                default:
+                    image = image.jpeg();
             }
         }
+
 
         // Handle thumbnail request
         if (thumb) {
@@ -213,8 +227,6 @@ exports.getImageData = async (req, res) => {
         // Set the appropriate content type
         const contentType = format === 'png' ? 'image/png' : 'image/jpeg'; // Adjust for other formats as needed
         res.set('Content-Type', contentType);
-
-        // Stream the image back to the client
         image.pipe(res);
     } catch (error) {
         console.error(error);
