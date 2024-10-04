@@ -110,77 +110,78 @@ const authController = {
   // Update user details (requires authentication)
   updateUser: async (req, res) => {
     try {
-      console.log("User ID:", req.params.userid); // Verify the user ID being passed
-      const { userid } = req.params;
+      const { userid } = req.params;  // This is coming from the URL as a string
       const { firstname, lastname, mobile, district_id, taluka_id, village_id, image } = req.body;
-
+  
+      // Convert `req.params.userid` to a number for comparison (if needed)
+      const parsedUserId = parseInt(userid, 10);  // Convert `userid` to number if it's a string      
       // Ensure authenticated user is updating their own details
-      if (req.user.userid !== userid) {
+      if (req.user.userid !== parsedUserId) {  // Compare parsed `userid`
         return res.status(403).json({ error: "Unauthorized to update this user" });
       }
-
+  
       const checkUserQuery = "SELECT * FROM users WHERE id = $1"; // Use 'id' here
-      const userResult = await pool.query(checkUserQuery, [userid]); // Pass userid correctly
+      const userResult = await pool.query(checkUserQuery, [parsedUserId]); // Pass parsedUserId correctly
       const user = userResult.rows[0];
-
+  
       if (!user) {
         return res.status(404).json({ success: false, message: "User not found" });
       }
-
+  
       // Dynamically build update query
       const updateFields = [];
       const params = [];
-
+  
       if (firstname) {
         updateFields.push("firstname = $" + (params.length + 1));
         params.push(firstname);
       }
-
+  
       if (lastname) {
         updateFields.push("lastname = $" + (params.length + 1));
         params.push(lastname);
       }
-
+  
       if (mobile) {
         updateFields.push("mobile = $" + (params.length + 1));
         params.push(mobile);
       }
-
+  
       if (district_id) {
         updateFields.push("district_id = $" + (params.length + 1));
         params.push(district_id);
       }
-
+  
       if (taluka_id) {
         updateFields.push("taluka_id = $" + (params.length + 1));
         params.push(taluka_id);
       }
-
+  
       if (village_id) {
         updateFields.push("village_id = $" + (params.length + 1));
         params.push(village_id);
       }
-
+  
       if (image) {
         let img = image === "delete" ? null : image;
         updateFields.push("image = $" + (params.length + 1));
         params.push(img);
       }
-
+  
       if (updateFields.length === 0) {
         return res.status(400).json({ error: "No fields to update" });
       }
-
-      params.push(userid);
-
-      const updateQuery = `UPDATE users SET ${updateFields.join(", ")} WHERE id = $${params.length}`; // Use 'id' here, not 'userid'
+  
+      params.push(parsedUserId);  // Push the parsed user ID
+  
+      const updateQuery = `UPDATE users SET ${updateFields.join(", ")} WHERE id = $${params.length}`; // Use 'id' here
       const updateResult = await pool.query(updateQuery, params);
-
+  
       if (updateResult.rowCount > 0) {
-        const updatedUserResult = await pool.query(checkUserQuery, [userid]);
+        const updatedUserResult = await pool.query(checkUserQuery, [parsedUserId]);
         const updatedUser = updatedUserResult.rows[0];
         const { password, ...userWithoutPassword } = updatedUser;
-
+  
         return res.status(200).json({
           success: true,
           message: "User updated successfully",
@@ -194,6 +195,7 @@ const authController = {
       return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
   }
+  
 
 };
 
