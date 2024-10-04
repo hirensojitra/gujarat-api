@@ -92,21 +92,38 @@ const villageController = {
   getById: async (req, res) => {
     try {
       const { id } = req.params;
+
+      // Validate id to ensure it's a number
+      if (!id || isNaN(Number(id))) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid ID parameter"
+        });
+      }
+
       const sql = `
-          SELECT v.id, v.name, v.gu_name, t.name AS taluka_name, t.id AS taluka_id, t.gu_name AS taluka_gu_name, d.name AS district_name, d.id AS district_id, d.gu_name AS district_gu_name
-          FROM village v
-          JOIN taluka t ON v.taluka_id = t.id
-          JOIN district d ON v.district_id = d.id
-          WHERE v.id = $1 AND v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0
+        SELECT v.id, v.name, v.gu_name, t.name AS taluka_name, t.id AS taluka_id, t.gu_name AS taluka_gu_name, 
+               d.name AS district_name, d.id AS district_id, d.gu_name AS district_gu_name
+        FROM village v
+        JOIN taluka t ON v.taluka_id = t.id
+        JOIN district d ON v.district_id = d.id
+        WHERE v.id = $1 AND v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0
       `;
-      const result = await pool.query(sql, [id]);
+
+      const result = await pool.query(sql, [Number(id)]); // Make sure id is cast to a number
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Village not found" });
+      }
+
       res.json({
         data: result.rows[0],
       });
     } catch (error) {
-      console.error(error);
-      res.json({
+      console.error("Error in getById:", error);
+      res.status(500).json({
         status: "error",
+        message: "Internal Server Error",
       });
     }
   },
