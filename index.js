@@ -5,7 +5,7 @@ const app = express()
 app.use(cors());
 require('dotenv').config()
 
-app.use(express.urlencoded({extended: false}))
+app.use(express.urlencoded({ extended: false }))
 app.use(express.json())
 
 const postsRouter = require('./routes/posts.router')
