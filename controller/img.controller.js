@@ -255,9 +255,7 @@ exports.deleteImage = async (req, res) => {
 };
 exports.getImageData = async (req, res) => {
     const { folderId, imageId } = req.params;
-    const { quality, format, thumb } = req.query;
     try {
-        // Check if folder exists
         const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
         if (folderResult.rows.length === 0) {
             return res.status(404).json({ error: 'Folder not found' });
@@ -265,77 +263,41 @@ exports.getImageData = async (req, res) => {
 
         const folderName = folderResult.rows[0].name;
         const sanitizedFolderName = sanitizeTableName(folderName);
+        const deleteQuery = `DELETE FROM ${sanitizedFolderName}_images WHERE id = $1`;
 
-        // Get the image URL from the database using imageId
-
+        // First, find the file to be deleted
         const imageResult = await pool.query(`SELECT image_url FROM ${sanitizedFolderName}_images WHERE id = $1`, [imageId]);
         if (imageResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Image not found' });
+            return res.status(404).json({ error: 'Image not found in database' });
         }
 
-        // Extract the image name from the image URL in the database
-        const imageName = path.basename(imageResult.rows[0].image_url);
-        const imagePath = path.join(__dirname, `../uploads/${folderId}/${imageName}`);
+        const imagePath = path.join(__dirname, `../uploads/${folderId}/${imageResult.rows[0].image_url}`);
+        console.log('Attempting to delete file at path:', imagePath);
 
-        // Check if the file exists in the filesystem
-        if (!fs.existsSync(imagePath)) {
-            return res.status(404).json({ error: 'Image not found on the filesystem' });
+        // Check if the file exists
+        if (fs.existsSync(imagePath)) {
+            fs.unlink(imagePath, (err) => {
+                if (err) {
+                    console.error('Error deleting file:', err);
+                    return res.status(500).json({ error: 'Error deleting file from filesystem' });
+                }
+
+                // After file is deleted, delete the record from the database
+                pool.query(deleteQuery, [imageId], (dbErr) => {
+                    if (dbErr) {
+                        console.error('Error deleting image from database:', dbErr);
+                        return res.status(500).json({ error: 'Error deleting image from database' });
+                    }
+
+                    res.status(200).json({ message: 'Image deleted successfully' });
+                });
+            });
+        } else {
+            return res.status(404).json({ error: 'File not found on the filesystem' });
         }
-
-        // Process the image using sharp
-        let image = sharp(imagePath);
-
-        // Handle quality query parameter
-        if (quality) {
-            const parsedQuality = parseInt(quality);
-            if (!isNaN(parsedQuality)) {
-                image = image.jpeg({ quality: parsedQuality }); // Apply quality setting
-            }
-        }
-
-        // Handle format query parameter (defaults to jpeg if no format is provided)
-        if (format) {
-            switch (format.toLowerCase()) {
-                case 'png':
-                    image = image.png();
-                    break;
-                case 'webp':
-                    image = image.webp();
-                    break;
-                case 'jpeg':
-                case 'jpg':
-                    image = image.jpeg();
-                    break;
-                case 'gif':
-                    image = image.gif();
-                    break;
-                case 'tiff':
-                case 'tif':
-                    image = image.tiff();
-                    break;
-                case 'bmp':
-                    image = image.bmp();
-                    break;
-                default:
-                    image = image.jpeg();
-            }
-        }
-
-        // Handle thumbnail request (resize for thumbnail)
-        if (thumb) {
-            image = image.resize(100); // Resize to 100px for thumbnail
-        }
-
-        // Set the appropriate content type based on format or fallback to 'image/jpeg'
-        const contentType = format === 'png' ? 'image/png' : 'image/jpeg';
-        res.set('Content-Type', contentType);
-
-        // Stream the processed image back to the client
-        image.pipe(res);
-
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Error fetching image' });
+        res.status(500).json({ error: 'Error deleting image' });
     }
 };
 // Controller: Rename an existing folder
