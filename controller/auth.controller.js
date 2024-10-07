@@ -65,9 +65,12 @@ const authController = {
           process.env.JWT_SECRET || "3812932sjad43&*@", // Use environment variable for secret
           { expiresIn: "1y" }
         );
-
-        const userData = { ...user, password: undefined };
-        return res.json({ token: accessToken, user: userData });
+        const userData = {
+          ...user,
+          password: undefined, // Remove password
+          token: accessToken // Include the token in the userData object
+        };
+        return res.status(200).json(userData);
       } else {
         return res.json({ error: "Wrong password!" });
       }
