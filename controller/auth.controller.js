@@ -115,7 +115,9 @@ const authController = {
       }
 
       const foundUser = user.rows[0];
-
+      if (foundUser.emailverified) {
+        return res.json({ success: true, message: 'Email successfully verified already!' });
+      }
       // Check if token is expired
       const currentTime = new Date();
       if (foundUser.tokenExpiration < currentTime) {
