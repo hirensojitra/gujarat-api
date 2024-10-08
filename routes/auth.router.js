@@ -14,6 +14,8 @@ router.put("/updateUser/:userid", authenticateToken, uploadLimits.single('image'
 // Route for user login
 router.post("/login", authController.login);
 router.get('/profile-image/:username', authController.getProfileImage);
+router.get('/verify-email', authController.verifyEmail);
+router.post('/resend-verification', authController.resendVerification);
 
 
 module.exports = router;
