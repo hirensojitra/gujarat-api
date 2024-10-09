@@ -16,6 +16,7 @@ const talukaRouter = require('./routes/taluka.router')
 const villageRouter = require('./routes/village.router')
 const imagesRouter = require('./routes/images.router')
 const folderRouter = require('./routes/img.router')
+const userImgRouter = require('./routes/user-img.router')
 
 app.use("/api/v1/posts", postsRouter)
 app.use("/api/v1/post-detail", postDetail)
@@ -25,6 +26,7 @@ app.use("/api/v1/taluka", talukaRouter)
 app.use("/api/v1/village", villageRouter)
 app.use("/api/v1/images", imagesRouter)
 app.use("/api/v1/img", folderRouter)
+app.use("/api/v1/user-img", userImgRouter)
 
 const PORT = process.env.PORT || 5000
 

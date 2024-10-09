@@ -8,6 +8,23 @@ const sharp = require('sharp');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
+const generateUniqueId = async () => {
+  // Generate a random 16-character alphanumeric string in lowercase
+  const newId = crypto.randomBytes(8).toString('hex'); // 16 chars (8 bytes)
+
+  // Check if this ID already exists in the database
+  const idCheckQuery = `SELECT id FROM users WHERE id = $1`;
+  const idCheckResult = await pool.query(idCheckQuery, [newId]);
+
+  if (idCheckResult.rows.length > 0) {
+    // If the ID is a duplicate, recursively call the function to generate a new one
+    return generateUniqueId();
+  }
+
+  // If the ID is unique, return it
+  return newId;
+};
+
 // Email transporter setup
 const transporter = nodemailer.createTransport({
   service: 'gmail', // You can use any service
@@ -17,7 +34,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 const authController = {
-  // Register a new user
   register: async (req, res) => {
     try {
       const { email, password, username, roles } = req.body;
@@ -39,16 +55,20 @@ const authController = {
       // Hash the password
       const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
+      // Generate unique ID
+      const uniqueId = await generateUniqueId();
+
       // Generate verification token
       const verificationToken = crypto.randomBytes(32).toString('hex');
       const tokenExpiration = new Date(Date.now() + 3600000); // 1 hour from now
 
-      // Insert new user into database
+      // Insert new user into the database
       const insertUserQuery = `
-        INSERT INTO users (email, password, username, roles, emailVerified, verificationToken, tokenExpiration)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO users (id, email, password, username, roles, emailVerified, verificationToken, tokenExpiration)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `;
       const insertUserResult = await pool.query(insertUserQuery, [
+        uniqueId,
         trimmedEmail,
         hashedPassword,
         trimmedUsername,
@@ -59,7 +79,7 @@ const authController = {
       ]);
 
       if (insertUserResult.rowCount > 0) {
-        const verificationLink = `https\://${req.headers.origin}/verify-email?token=${encodeURIComponent(verificationToken)}&email=${encodeURIComponent(trimmedEmail)}`;
+        const verificationLink = `${req.headers.origin}/verify-email?token=${encodeURIComponent(verificationToken)}&email=${encodeURIComponent(trimmedEmail)}`;
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: trimmedEmail,
@@ -90,7 +110,7 @@ const authController = {
         return res.json({
           success: true,
           message: 'Registration successful! A verification email has been sent.',
-          user: { email: trimmedEmail, username: trimmedUsername }
+          user: { id: uniqueId, email: trimmedEmail, username: trimmedUsername }
         });
       } else {
         return res.json({ error: "Error during registration" });
@@ -99,8 +119,7 @@ const authController = {
       console.error(error);
       res.json({ error: error.message });
     }
-  }
-  ,
+  },
 
   // Verify email
   verifyEmail: async (req, res) => {
@@ -275,15 +294,14 @@ const authController = {
       const { userid } = req.params;
       const { firstname, lastname, mobile, district_id, taluka_id, village_id } = req.body;
       const image = req.file;  // Multer handles file uploads in buffer format
-      const parsedUserId = parseInt(userid, 10);  // Convert userID from string to integer
 
-      if (req.user.userid !== parsedUserId) {
+      if (req.user.userid !== userid) {
         return res.status(403).json({ error: "Unauthorized to update this user" });
       }
 
       // Fetch the user from the database to verify existence
       const checkUserQuery = "SELECT * FROM users WHERE id = $1";
-      const userResult = await pool.query(checkUserQuery, [parsedUserId]);
+      const userResult = await pool.query(checkUserQuery, [userid]);
       const user = userResult.rows[0];
 
       if (!user) {
@@ -356,12 +374,12 @@ const authController = {
       if (updateFields.length === 0) {
         return res.status(400).json({ error: "No fields to update" });
       }
-      params.push(parsedUserId);
+      params.push(userid);
       const updateQuery = `UPDATE users SET ${updateFields.join(", ")} WHERE id = $${params.length}`;
       const updateResult = await pool.query(updateQuery, params);
 
       if (updateResult.rowCount > 0) {
-        const updatedUserResult = await pool.query(checkUserQuery, [parsedUserId]);
+        const updatedUserResult = await pool.query(checkUserQuery, [userid]);
         const updatedUser = updatedUserResult.rows[0];
         const { password, ...userWithoutPassword } = updatedUser;  // Exclude password
 
