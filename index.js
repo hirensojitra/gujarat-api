@@ -1,12 +1,12 @@
 const express = require("express")
 const cors = require('cors');
 const app = express()
-
+const bodyParser = require('body-parser');
 app.use(cors());
 require('dotenv').config()
 
 app.use(express.urlencoded({ extended: false }))
-app.use(express.json())
+app.use(bodyParser.json());
 
 const postsRouter = require('./routes/posts.router')
 const postDetail = require('./routes/post-detail.router')
@@ -17,6 +17,7 @@ const villageRouter = require('./routes/village.router')
 const imagesRouter = require('./routes/images.router')
 const folderRouter = require('./routes/img.router')
 const userImgRouter = require('./routes/user-img.router')
+const tokenRouter = require('./routes/token.router');
 
 app.use("/api/v1/posts", postsRouter)
 app.use("/api/v1/post-detail", postDetail)
@@ -27,6 +28,7 @@ app.use("/api/v1/village", villageRouter)
 app.use("/api/v1/images", imagesRouter)
 app.use("/api/v1/img", folderRouter)
 app.use("/api/v1/user-img", userImgRouter)
+app.use('/api/v1/', tokenRouter);
 
 const PORT = process.env.PORT || 5000
 

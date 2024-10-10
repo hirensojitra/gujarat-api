@@ -56,9 +56,6 @@ const imgController = {
         const { folderName } = req.body;
 
         try {
-            // Sanitize the folder name to avoid SQL injection
-            const sanitizedFolderName = sanitizeTableName(folderName);
-
             // Generate a unique alphanumeric folder ID
             const uniqueFolderId = await generateUniqueId('folders', 'id');
 
@@ -69,17 +66,6 @@ const imgController = {
             );
             const createdAt = folderInsert.rows[0].created_at;
 
-            // Dynamically create a table for the folder to store image paths
-            const createTableQuery = `
-                CREATE TABLE IF NOT EXISTS ${sanitizedFolderName}_images (
-                    id VARCHAR(5) PRIMARY KEY,
-                    folder_id VARCHAR(5) NOT NULL,
-                    image_url TEXT NOT NULL,
-                    metadata JSONB,
-                    FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE CASCADE
-                );
-            `;
-            await pool.query(createTableQuery);
 
             // Return the newly created folder's details, including created_at timestamp
             res.status(201).json({ message: 'Folder created', folderId: uniqueFolderId, createdAt });
@@ -111,16 +97,14 @@ const imgController = {
                     return res.status(404).json({ error: 'Folder not found' });
                 }
 
-                const folderName = folderResult.rows[0].name;
-                const sanitizedFolderName = sanitizeTableName(folderName);
-                const imageUrl = `/uploads/${folderId}/${req.file.filename}`;
+                const imageUrl = `/uploads/${req.file.filename}`;
 
                 // Generate a unique alphanumeric image ID
-                const uniqueImageId = await generateUniqueId(`${sanitizedFolderName}_images`, 'id');
+                const uniqueImageId = await generateUniqueId(`user_images`, 'id');
 
                 // Insert image record with the generated unique ID
                 const insertQuery = `
-                    INSERT INTO ${sanitizedFolderName}_images (id, folder_id, image_url, metadata)
+                    INSERT INTO user_images (id, folder_id, image_url, metadata)
                     VALUES ($1, $2, $3, $4) RETURNING id
                 `;
                 const result = await pool.query(insertQuery, [uniqueImageId, folderId, imageUrl, metadata]);
@@ -174,25 +158,26 @@ const imgController = {
     },
     getImagesInFolder: async (req, res) => {
         const { folderId } = req.params;
-        const { page = 1, limit = 10, search = '', sort = 'asc' } = req.query;
+        const { page = 1, limit = 10, search = '', sort = 'asc' } = req.query; // Get userid from query
         const offset = (page - 1) * limit;
-
         try {
+
             const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
 
             if (folderResult.rows.length === 0) {
-                return res.status(404).json({ error: 'Folder not found' });
+                return res.status(404).json({ error: 'Folder not found or not owned by user' });
             }
 
             const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = sanitizeTableName(folderName);
+
+            // Fetch images within the user's folder
             const query = `
-                SELECT * FROM ${sanitizedFolderName}_images
-                WHERE image_url ILIKE $1
+                SELECT * FROM user_images
+                WHERE folder_id = $1 AND image_url ILIKE $2
                 ORDER BY image_url ${sort}
-                LIMIT $2 OFFSET $3
+                LIMIT $3 OFFSET $4
             `;
-            const result = await pool.query(query, [`%${search}%`, limit, offset]);
+            const result = await pool.query(query, [folderId, `%${search}%`, limit, offset]);
 
             res.status(200).json({ images: result.rows });
         } catch (error) {
@@ -204,18 +189,13 @@ const imgController = {
         const { folderId } = req.params;
         const { search = '' } = req.query;
         try {
-            const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
-            if (folderResult.rows.length === 0) {
-                return res.status(404).json({ error: 'Folder not found' });
-            }
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = sanitizeTableName(folderName);
             const query = `
-                SELECT COUNT(*) as count FROM ${sanitizedFolderName}_images
-                WHERE image_url ILIKE $1
+                SELECT COUNT(*) as count FROM user_images
+                WHERE folder_id = $1 AND image_url ILIKE $2
             `;
-            const result = await pool.query(query, [`%${search}%`]);
-            res.status(200).json({ totalCount: parseInt(result.rows[0].count, 10) });
+            const result = await pool.query(query, [folderId, `%${search}%`]);
+            const totalCount = parseInt(result.rows[0].count, 10);
+            res.status(200).json({ totalCount });
         } catch (error) {
             console.error(error);
             res.status(500).json({ error: 'Error fetching image count' });
@@ -225,15 +205,19 @@ const imgController = {
     deleteImage: async (req, res) => {
         const { folderId, imageId } = req.params;
         try {
-            const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
-            if (folderResult.rows.length === 0) {
-                return res.status(404).json({ error: 'Folder not found' });
+            const imageResult = await pool.query(`SELECT image_url FROM user_images WHERE id = $1 and folder_id = $2`, [imageId, folderId]);
+            const imageUrl = imageResult.rows[0].image_url;
+            if (!imageUrl) {
+                return res.status(404).json({ error: 'Image not found or does not belong to this user' });
             }
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = sanitizeTableName(folderName);
-            const deleteQuery = `DELETE FROM ${sanitizedFolderName}_images WHERE id = $1`;
+            const imagePath = path.join(__dirname, '../uploads', folderId, path.basename(imageUrl));
+            const deleteQuery = `DELETE FROM user_images WHERE id = $1`;
             await pool.query(deleteQuery, [imageId]);
-
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (fs.existsSync(imagePath)) {
+                await fsPromises.unlink(imagePath);
+            }
+            // Delete the image from the images table
             res.status(200).json({ message: 'Image deleted successfully' });
         } catch (error) {
             console.error(error);
@@ -241,46 +225,40 @@ const imgController = {
         }
     },
     getImageData: async (req, res) => {
-        const { folderId, imageId } = req.params;
+        const { imageId } = req.params;
         const { quality, format, thumb } = req.query;
+
         try {
-            // Check if folder exists
-            const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
-            if (folderResult.rows.length === 0) {
-                return res.status(404).json({ error: 'Folder not found' });
-            }
+            // Query the database to fetch the image URL and folder by imageId
+            const imageResult = await pool.query(
+                'SELECT image_url, folder_id FROM user_images WHERE id = $1',
+                [imageId]
+            );
 
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = sanitizeTableName(folderName);
-
-            // Get the image URL from the database using imageId
-
-            const imageResult = await pool.query(`SELECT image_url FROM ${sanitizedFolderName}_images WHERE id = $1`, [imageId]);
             if (imageResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Image not found' });
             }
 
-            // Extract the image name from the image URL in the database
-            const imageName = path.basename(imageResult.rows[0].image_url);
-            const imagePath = path.join(__dirname, `../uploads/${folderId}/${imageName}`);
-
-            // Check if the file exists in the filesystem
+            const imageUrl = imageResult.rows[0].image_url;
+            const folderid = imageResult.rows[0].folder_id;
+            const imagePath = path.join(__dirname, '../uploads', folderid, path.basename(imageUrl));
+            // Check if the image exists on the filesystem
             if (!fs.existsSync(imagePath)) {
                 return res.status(404).json({ error: 'Image not found on the filesystem' });
             }
 
-            // Process the image using sharp
+            // Load the image using Sharp
             let image = sharp(imagePath);
 
-            // Handle quality query parameter
+            // Apply quality setting if specified
             if (quality) {
                 const parsedQuality = parseInt(quality);
                 if (!isNaN(parsedQuality)) {
-                    image = image.jpeg({ quality: parsedQuality }); // Apply quality setting
+                    image = image.jpeg({ quality: parsedQuality });
                 }
             }
 
-            // Handle format query parameter (defaults to jpeg if no format is provided)
+            // Handle format conversion (defaults to JPEG if not specified)
             if (format) {
                 switch (format.toLowerCase()) {
                     case 'png':
@@ -296,10 +274,6 @@ const imgController = {
                     case 'gif':
                         image = image.gif();
                         break;
-                    case 'tiff':
-                    case 'tif':
-                        image = image.tiff();
-                        break;
                     case 'bmp':
                         image = image.bmp();
                         break;
@@ -308,20 +282,19 @@ const imgController = {
                 }
             }
 
-            // Handle thumbnail request (resize for thumbnail)
+            // Generate a thumbnail if requested
             if (thumb) {
-                image = image.resize(100); // Resize to 100px for thumbnail
+                image = image.resize(100); // Resize to a 100px thumbnail
             }
 
-            // Set the appropriate content type based on format or fallback to 'image/jpeg'
+            // Set the content type for the response
             const contentType = format === 'png' ? 'image/png' : 'image/jpeg';
             res.set('Content-Type', contentType);
 
-            // Stream the processed image back to the client
+            // Send the processed image
             image.pipe(res);
-
         } catch (error) {
-            console.error(error);
+            console.error('Error fetching image:', error);
             res.status(500).json({ error: 'Error fetching image' });
         }
     },
@@ -338,21 +311,15 @@ const imgController = {
                 return res.status(404).json({ error: 'Folder not found' });
             }
 
-            const oldFolderName = folderResult.rows[0].name;
+            const oldFolderName = folderResult.rows[0].id;
             const oldSanitizedFolderName = sanitizeTableName(oldFolderName);
             const newSanitizedFolderName = sanitizeTableName(folderName);
 
             const oldFolderPath = path.join(__dirname, `../uploads/${folderId}`);
             const newFolderPath = path.join(__dirname, `../uploads/${newSanitizedFolderName}`);
 
-            // Rename the folder on the file system
             fs.renameSync(oldFolderPath, newFolderPath);
-
-            // Update the folder name in the database
             await pool.query('UPDATE folders SET name = $1 WHERE id = $2', [folderName, folderId]);
-
-            // Rename the associated table in the database
-            await pool.query(`ALTER TABLE ${oldSanitizedFolderName}_images RENAME TO ${newSanitizedFolderName}_images`);
 
             res.status(200).json({ message: 'Folder renamed successfully' });
         } catch (error) {
@@ -366,19 +333,10 @@ const imgController = {
         try {
             // Fetch the folder name from the database
             const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
-
             if (folderResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Folder not found' });
             }
-
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = sanitizeTableName(folderName);
             const folderPath = path.join(__dirname, `../uploads/${folderId}`);
-
-            // Delete the associated table for the folder
-            const dropTableQuery = `DROP TABLE IF EXISTS ${sanitizedFolderName}_images`;
-            await pool.query(dropTableQuery);
-
             // Delete the folder from the database
             await pool.query('DELETE FROM folders WHERE id = $1', [folderId]);
 
@@ -420,7 +378,7 @@ const imgController = {
                 const sanitizedFolderName = sanitizeTableName(folderName);
 
                 // Get the current image URL from the database
-                const imageResult = await pool.query(`SELECT image_url FROM ${sanitizedFolderName}_images WHERE id = $1`, [imageId]);
+                const imageResult = await pool.query(`SELECT image_url FROM user_images WHERE id = $1`, [imageId]);
                 if (imageResult.rows.length === 0) {
                     return res.status(404).json({ error: 'Image not found' });
                 }
@@ -438,7 +396,7 @@ const imgController = {
                 // Save the new image details in the database
                 const newImageUrl = `/uploads/${folderId}/${req.file.filename}`;
                 const updateQuery = `
-                    UPDATE ${sanitizedFolderName}_images 
+                    UPDATE user_images 
                     SET image_url = $1 
                     WHERE id = $2
                 `;

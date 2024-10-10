@@ -55,8 +55,6 @@ const imgController = {
     createFolder: async (req, res) => {
         const { folderName, userid } = req.body;
         try {
-            // Sanitize the folder name to avoid SQL injection
-            const sanitizedFolderName = sanitizeTableName(folderName);
 
             // Generate a unique alphanumeric folder ID
             const uniqueFolderId = await generateUniqueId('folders', 'id');
@@ -64,24 +62,15 @@ const imgController = {
             // Insert folder into the folders table with the user ID and return the created_at timestamp
             const folderInsert = await pool.query(
                 'INSERT INTO folders (id, name, user_id) VALUES ($1, $2, $3) RETURNING created_at',
-                [uniqueFolderId, sanitizedFolderName, userid]
+                [uniqueFolderId, folderName, userid]
             );
+            const folderPath = path.join(__dirname, `../uploads/${uniqueFolderId}`);
+
+            // Create the folder in the file system
+            if (!fs.existsSync(folderPath)) {
+                fs.mkdirSync(folderPath, { recursive: true });
+            }
             const createdAt = folderInsert.rows[0].created_at;
-
-            // Dynamically create a table for the folder to store image paths
-            const createTableQuery = `
-                CREATE TABLE IF NOT EXISTS user_images (
-                    id VARCHAR(5) PRIMARY KEY,
-                    folder_id VARCHAR(5) NOT NULL,
-                    user_id VARCHAR(255) NOT NULL,
-                    image_url TEXT NOT NULL,
-                    metadata JSONB,
-                    FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE CASCADE,
-                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-                );
-            `;
-            await pool.query(createTableQuery);
-
             // Return the newly created folder's details, including created_at timestamp
             res.status(201).json({ message: 'Folder created', folderId: uniqueFolderId, createdAt });
         } catch (error) {
@@ -174,9 +163,6 @@ const imgController = {
         const { folderId } = req.params;
         const { page = 1, limit = 10, search = '', sort = 'asc', userid } = req.query; // Get userid from query
         const offset = (page - 1) * limit;
-
-        console.log('Request User ID:', userid); // Debugging line
-
         try {
             // Ensure userid is provided
             if (!userid) {
@@ -191,12 +177,9 @@ const imgController = {
                 return res.status(404).json({ error: 'Folder not found or not owned by user' });
             }
 
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = folderName.replace(/[\s-]/g, '_').toLowerCase();
-
             // Fetch images within the user's folder
             const query = `
-                SELECT * FROM user_images -- Ensure this references the correct table
+                SELECT * FROM user_images
                 WHERE folder_id = $1 AND image_url ILIKE $2
                 ORDER BY image_url ${sort}
                 LIMIT $3 OFFSET $4
@@ -211,26 +194,13 @@ const imgController = {
     },
     getTotalImageCountInFolder: async (req, res) => {
         const { folderId } = req.params;
-        const { userid } = req.user;  // Assuming `userid` is obtained from authentication middleware or token
         const { search = '' } = req.query;
-
         try {
-            // Ensure the folder belongs to the authenticated user
-            const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1 AND user_id = $2', [folderId, userid]);
-            if (folderResult.rows.length === 0) {
-                return res.status(404).json({ error: 'Folder not found or access denied' });
-            }
-
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = folderName.replace(/[\s-]/g, '_').toLowerCase();
-
-            // Query the total count of images in the folder
             const query = `
-                SELECT COUNT(*) as count FROM images
+                SELECT COUNT(*) as count FROM user_images
                 WHERE folder_id = $1 AND image_url ILIKE $2
             `;
             const result = await pool.query(query, [folderId, `%${search}%`]);
-
             const totalCount = parseInt(result.rows[0].count, 10);
             res.status(200).json({ totalCount });
         } catch (error) {
@@ -242,41 +212,41 @@ const imgController = {
     // Controller: Delete an image
     deleteImage: async (req, res) => {
         const { folderId, imageId } = req.params;
-        const { userid } = req.body;  // Assuming the userid is passed in the request body or through authentication middleware
 
         try {
-            // Check if the folder belongs to the user
-            const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1 AND user_id = $2', [folderId, userid]);
+            // Fetch the image URL from the database
+            const imageResult = await pool.query(`SELECT image_url FROM user_images WHERE id = $1 AND folder_id = $2`, [imageId, folderId]);
 
-            if (folderResult.rows.length === 0) {
-                return res.status(404).json({ error: 'Folder not found or does not belong to this user' });
+            // Check if the image exists
+            if (imageResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Image not found or does not belong to this folder' });
             }
 
-            // Get the folder name to fetch the correct images table
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = sanitizeTableName(folderName);
+            const imageUrl = imageResult.rows[0].image_url;
+            const imagePath = path.join(__dirname, '../uploads', folderId, path.basename(imageUrl));
 
-            // Delete the image from the images table
-            const deleteQuery = `DELETE FROM ${sanitizedFolderName}_images WHERE id = $1`;
-            await pool.query(deleteQuery, [imageId]);
+            console.log('Attempting to delete:', imagePath); // Log the path to be deleted
 
-            // Find the image path on the filesystem
-            const imageResult = await pool.query(`SELECT image_url FROM ${sanitizedFolderName}_images WHERE id = $1`, [imageId]);
-            const imagePath = path.join(__dirname, `../uploads/${imageResult.rows[0].image_url}`);
-
-            // Check if the file exists in the filesystem, then delete it
+            // Check if the file exists in the filesystem
             if (fs.existsSync(imagePath)) {
-                await fsPromises.unlink(imagePath);
-            } else {
-                return res.status(404).json({ error: 'Image file not found on the filesystem' });
-            }
+                await fsPromises.rm(imagePath, { recursive: true, force: true });
+                console.log('File deleted successfully'); // Log success message
 
-            res.status(200).json({ message: 'Image deleted successfully' });
+                // Only delete the image record from the database after successful file deletion
+                await pool.query(`DELETE FROM user_images WHERE id = $1`, [imageId]);
+
+                // Respond with a success message
+                res.status(200).json({ message: 'Image deleted successfully' });
+            } else {
+                console.error('File does not exist:', imagePath); // Log if the file does not exist
+                return res.status(404).json({ error: 'Image file not found in the filesystem' });
+            }
         } catch (error) {
-            console.error(error);
+            console.error('Error deleting image:', error); // Log the error
             res.status(500).json({ error: 'Error deleting image' });
         }
     },
+
     getImageData: async (req, res) => {
         const { imageId } = req.params;
         const { quality, format, thumb } = req.query;
@@ -354,10 +324,11 @@ const imgController = {
     // Controller: Rename an existing folder
     renameFolder: async (req, res) => {
         const { folderId } = req.params;
-        const { folderName, userid } = req.body; // Assuming userid is sent in the request body
+        const { folderName } = req.body;
+        const { userid } = req.user;
 
         try {
-            // Fetch the folder details from the database, including user ID
+            // Fetch the folder details from the database
             const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
 
             if (folderResult.rows.length === 0) {
@@ -367,27 +338,12 @@ const imgController = {
             const folder = folderResult.rows[0];
 
             // Check if the folder belongs to the user
-            if (folder.user_id !== userid) { // Assuming there's a user_id column in the folders table
+            if (folder.user_id !== userid) {
                 return res.status(403).json({ error: 'You do not have permission to rename this folder' });
             }
-
-            const oldFolderName = folder.name;
-            const oldSanitizedFolderName = sanitizeTableName(oldFolderName);
-            const newSanitizedFolderName = sanitizeTableName(folderName);
-
-            // Rename the folder in the file system
-            const oldFolderPath = path.join(__dirname, `../uploads/${folderId}`);
-            const newFolderPath = path.join(__dirname, `../uploads/${newSanitizedFolderName}`);
-
-            fs.renameSync(oldFolderPath, newFolderPath);
-
-            // Update the folder name in the database
             await pool.query('UPDATE folders SET name = $1 WHERE id = $2', [folderName, folderId]);
+            return res.status(200).json({ message: 'Folder renamed successfully' });
 
-            // Rename the associated table in the database
-            await pool.query(`ALTER TABLE ${oldSanitizedFolderName}_images RENAME TO ${newSanitizedFolderName}_images`);
-
-            res.status(200).json({ message: 'Folder renamed successfully' });
         } catch (error) {
             console.error(error);
             res.status(500).json({ error: 'Error renaming folder' });
@@ -395,38 +351,35 @@ const imgController = {
     },
     deleteFolder: async (req, res) => {
         const { folderId } = req.params; // Extract the folder ID from the request parameters
-        const userid = req.user.id; // Assuming you have user authentication middleware that sets req.user
 
         try {
             // Fetch the folder from the database to check ownership
-            const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1 AND user_id = $2', [folderId, userid]);
+            const folderResult = await pool.query('SELECT * FROM folders WHERE id = $1', [folderId]);
 
             if (folderResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Folder not found or access denied' });
             }
 
-            const folderName = folderResult.rows[0].name;
-            const sanitizedFolderName = sanitizeTableName(folderName);
+            // Assuming the user_id is stored in the folder's database record
+            const folder = folderResult.rows[0];
             const folderPath = path.join(__dirname, `../uploads/${folderId}`);
 
-            // Delete the associated table for the folder
-            const dropTableQuery = `DROP TABLE IF EXISTS ${sanitizedFolderName}_images`;
-            await pool.query(dropTableQuery);
-
-            // Delete the folder from the database
-            await pool.query('DELETE FROM folders WHERE id = $1', [folderId]);
-
-            // Remove the folder from the filesystem
+            // Check if the folder exists and delete its contents
             if (fs.existsSync(folderPath)) {
                 await fsPromises.rm(folderPath, { recursive: true, force: true });
             }
 
+            // Remove the folder entry from the database
+            await pool.query('DELETE FROM folders WHERE id = $1', [folderId]);
+
+            // Send a success response
             res.status(200).json({ message: 'Folder deleted successfully' });
         } catch (error) {
-            console.error(error);
+            console.error('Error deleting folder:', error);
             res.status(500).json({ error: 'Error deleting folder' });
         }
-    },
+    }
+    ,
     refreshImage: [
         // Middleware to handle file upload
         (req, res, next) => {

@@ -8,7 +8,7 @@ router.put('/folders/:folderId/rename', imgController.renameFolder);
 router.post('/folders/:folderId/images', imgController.uploadImage);
 router.get('/folders/:folderId/images', imgController.getImagesInFolder);
 router.delete('/folders/:folderId/images/:imageId', imgController.deleteImage);
-router.get('/uploads/:folderId/:imageId', imgController.getImageData);
+router.get('/uploads/:imageId', imgController.getImageData);
 router.delete('/folders/:folderId', imgController.deleteFolder);
 router.post('/folders/:folderId/images/:imageId/refresh', imgController.refreshImage);
 router.get('/folders/count', imgController.getTotalFolderCount);
