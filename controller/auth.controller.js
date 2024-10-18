@@ -61,48 +61,61 @@ const authController = {
       // Generate verification token
       const verificationToken = crypto.randomBytes(32).toString('hex');
       const tokenExpiration = new Date(Date.now() + 3600000); // 1 hour from now
-
-      // Insert new user into the database
+      const createdAt = new Date();
       const insertUserQuery = `
-        INSERT INTO users (id, email, password, username, roles, emailVerified, verificationToken, tokenExpiration)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO users (id, email, password, username, roles, emailVerified, verificationToken, tokenExpiration, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `;
       const insertUserResult = await pool.query(insertUserQuery, [
         uniqueId,
         trimmedEmail,
         hashedPassword,
         trimmedUsername,
-        userRoles,
+        ['viewer'],
         false, // emailVerified
         verificationToken,
-        tokenExpiration
+        tokenExpiration,
+        createdAt
       ]);
 
       if (insertUserResult.rowCount > 0) {
+        // Generate the token
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+
+        // Hash the token before saving it to the database
+        const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+
+        // Save the hashed token and the expiration time in the database
+        const tokenExpiration = new Date();
+        tokenExpiration.setHours(tokenExpiration.getHours() + 1); // Token expires in 1 hour
+        await pool.query('UPDATE users SET verificationToken = $1, tokenExpiration = $2 WHERE email = $3', [hashedToken, tokenExpiration, trimmedEmail]);
+
+        // Generate the verification link with the unhashed token
         const verificationLink = `${req.headers.origin}/verify-email?token=${encodeURIComponent(verificationToken)}&email=${encodeURIComponent(trimmedEmail)}`;
+
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: trimmedEmail,
           subject: 'Email Verification',
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-              <h2 style="text-align: center; color: #333;">Welcome to Our App!</h2>
-              <p style="font-size: 16px; color: #333;">Hi <strong>${trimmedUsername}</strong>,</p>
-              <p style="font-size: 16px; color: #333;">Thank you for registering! Please verify your email address by clicking the button below.</p>
-              <p style="text-align: center;">
-                <a href="${verificationLink}" 
-                   style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">
-                   Verify Email
-                </a>
-              </p>
-              <p style="font-size: 14px; color: #666; text-align: center;">Or copy and paste the following link into your browser:</p>
-              <p style="font-size: 14px; color: #666; word-break: break-all; text-align: center;">
-                <a href="${verificationLink}" style="color: #28a745;">${verificationLink}</a>
-              </p>
-              <hr style="border: 0; border-top: 1px solid #eee;">
-              <p style="font-size: 12px; color: #999; text-align: center;">If you did not register for this account, please ignore this email.</p>
-            </div>
-          `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                <h2 style="text-align: center; color: #333;">Welcome to Our App!</h2>
+                <p style="font-size: 16px; color: #333;">Hi <strong>${trimmedUsername}</strong>,</p>
+                <p style="font-size: 16px; color: #333;">Thank you for registering! Please verify your email address by clicking the button below.</p>
+                <p style="text-align: center;">
+                  <a href="${verificationLink}" 
+                     style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                     Verify Email
+                  </a>
+                </p>
+                <p style="font-size: 14px; color: #666; text-align: center;">Or copy and paste the following link into your browser:</p>
+                <p style="font-size: 14px; color: #666; word-break: break-all; text-align: center;">
+                  <a href="${verificationLink}" style="color: #28a745;">${verificationLink}</a>
+                </p>
+                <hr style="border: 0; border-top: 1px solid #eee;">
+                <p style="font-size: 12px; color: #999; text-align: center;">If you did not register for this account, please ignore this email.</p>
+              </div>
+            `
         };
 
         await transporter.sendMail(mailOptions);
@@ -126,25 +139,29 @@ const authController = {
     try {
       const { token, email } = req.query;
 
-      // Fetch user based on the email and verification token
-      const user = await pool.query('SELECT * FROM users WHERE email = $1 AND verificationToken = $2', [email, token]);
+      // Hash the token from the query parameters
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-      if (!user.rows.length) {
+      // Fetch user based on the email and hashed token
+      const userQuery = await pool.query('SELECT * FROM users WHERE email = $1 AND verificationToken = $2', [email, hashedToken]);
+
+      if (!userQuery.rows.length) {
         return res.status(400).json({ error: 'Invalid or expired verification link!' });
       }
 
-      const foundUser = user.rows[0];
+      const foundUser = userQuery.rows[0];
       if (foundUser.emailverified) {
-        return res.json({ success: true, message: 'Email successfully verified already!' });
+        return res.json({ success: true, message: 'Email already verified!' });
       }
+
       // Check if token is expired
       const currentTime = new Date();
       if (foundUser.tokenExpiration < currentTime) {
         return res.status(400).json({ error: 'Token has expired!' });
       }
 
-      // Mark the email as verified
-      await pool.query('UPDATE users SET emailVerified = true WHERE email = $1', [email]);
+      // Mark the email as verified and remove the token
+      await pool.query('UPDATE users SET emailVerified = true, verificationToken = NULL, tokenExpiration = NULL WHERE email = $1', [email]);
 
       return res.json({ success: true, message: 'Email successfully verified!' });
     } catch (error) {
@@ -158,7 +175,7 @@ const authController = {
     const { email } = req.body;
 
     try {
-      // Query to fetch user details including username
+      // Query to fetch user details including username and email verification status
       const userQuery = `SELECT email, username, emailVerified FROM users WHERE email = $1`;
       const userResult = await pool.query(userQuery, [email]);
       const user = userResult.rows[0];
@@ -167,46 +184,50 @@ const authController = {
         return res.status(404).json({ error: "User not found" });
       }
 
-      if (user.emailVerified) {
+      if (user.emailverified) {
         return res.status(400).json({ error: "Email is already verified." });
       }
 
-      // Generate new verification token and expiration
+      // Generate new verification token and hash it
       const newToken = crypto.randomBytes(32).toString('hex');
-      const newTokenExpiration = new Date(Date.now() + 3600000); // 1 hour from now
+      const hashedToken = crypto.createHash('sha256').update(newToken).digest('hex');
 
-      // Update the user's token and expiration in the database
+      // Set token expiration time to 10 minutes (600000 ms)
+      const newTokenExpiration = new Date(Date.now() + 600000); // 10 minutes from now
+
+      // Update the user's hashed token and expiration in the database
       const updateQuery = `UPDATE users SET verificationToken = $1, tokenExpiration = $2 WHERE email = $3`;
-      await pool.query(updateQuery, [newToken, newTokenExpiration, email]);
+      await pool.query(updateQuery, [hashedToken, newTokenExpiration, email]);
 
-      // Construct verification link using the correct token and email
+      // Construct verification link using the unhashed token and email
       const verificationLink = `${req.headers.origin}/verify-email?token=${encodeURIComponent(newToken)}&email=${encodeURIComponent(email)}`;
 
       // Use the fetched username for the email template
-      const trimmedUsername = user.username;  // Assuming the username is in the database
+      const trimmedUsername = user.username;
 
       // Prepare the email content
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
         subject: 'Resend Email Verification',
-        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-              <h2 style="text-align: center; color: #333;">Welcome to Our App!</h2>
-              <p style="font-size: 16px; color: #333;">Hi <strong>${trimmedUsername}</strong>,</p>
-              <p style="font-size: 16px; color: #333;">Thank you for registering! Please verify your email address by clicking the button below.</p>
-              <p style="text-align: center;">
-                <a href="${verificationLink}" 
-                   style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">
-                   Verify Email
-                </a>
-              </p>
-              <p style="font-size: 14px; color: #666; text-align: center;">Or copy and paste the following link into your browser:</p>
-              <p style="font-size: 14px; color: #666; word-break: break-all; text-align: center;">
-                <a href="${verificationLink}" style="color: #28a745;">${verificationLink}</a>
-              </p>
-              <hr style="border: 0; border-top: 1px solid #eee;">
-              <p style="font-size: 12px; color: #999; text-align: center;">If you did not register for this account, please ignore this email.</p>
-            </div>`
+        html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                  <h2 style="text-align: center; color: #333;">Welcome to Our App!</h2>
+                  <p style="font-size: 16px; color: #333;">Hi <strong>${trimmedUsername}</strong>,</p>
+                  <p style="font-size: 16px; color: #333;">Thank you for registering! Please verify your email address by clicking the button below.</p>
+                  <p style="text-align: center;">
+                      <a href="${verificationLink}" 
+                         style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                         Verify Email
+                      </a>
+                  </p>
+                  <p style="font-size: 14px; color: #666; text-align: center;">Or copy and paste the following link into your browser:</p>
+                  <p style="font-size: 14px; color: #666; word-break: break-all; text-align: center;">
+                      <a href="${verificationLink}" style="color: #28a745;">${verificationLink}</a>
+                  </p>
+                  <hr style="border: 0; border-top: 1px solid #eee;">
+                  <p style="font-size: 12px; color: #999; text-align: center;">If you did not register for this account, please ignore this email.</p>
+              </div>`
       };
 
       // Send the email
@@ -292,20 +313,43 @@ const authController = {
   updateUser: async (req, res) => {
     try {
       const { userid } = req.params;
-      const { firstname, lastname, mobile, district_id, taluka_id, village_id } = req.body;
+      const { firstname, lastname, mobile, district_id, taluka_id, village_id, roles } = req.body; // Include roles in the body
       const image = req.file;  // Multer handles file uploads in buffer format
 
-      if (req.user.userid !== userid) {
-        return res.status(403).json({ error: "Unauthorized to update this user" });
+      // Fetch the user making the request
+      const { userid: requestingUserId } = req.user;
+
+      // Fetch the roles of the user making the request
+      const requestingUserQuery = 'SELECT roles FROM users WHERE id = $1';
+      const requestingUserResult = await pool.query(requestingUserQuery, [requestingUserId]);
+      const requestingUser = requestingUserResult.rows[0];
+
+      if (!requestingUser) {
+        return res.status(403).json({ error: "Unauthorized" });
       }
 
-      // Fetch the user from the database to verify existence
-      const checkUserQuery = "SELECT * FROM users WHERE id = $1";
-      const userResult = await pool.query(checkUserQuery, [userid]);
-      const user = userResult.rows[0];
+      const requestingRolesArray = requestingUser.roles.split(',').map(role => role.trim());
 
-      if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
+      // Only "Master" and "Admin" can change roles
+      if (!requestingRolesArray.includes('master') && !requestingRolesArray.includes('admin')) {
+        return res.status(403).json({ error: "You are not allowed to change roles" });
+      }
+
+      // Fetch the target user to be updated
+      const targetUserQuery = 'SELECT * FROM users WHERE id = $1';
+      const targetUserResult = await pool.query(targetUserQuery, [userid]);
+      const targetUser = targetUserResult.rows[0];
+
+      if (!targetUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Only Master can change Admin or Master roles
+      if (roles && requestingRolesArray.includes('admin')) {
+        const targetRolesArray = targetUser.roles.split(',').map(role => role.trim());
+        if (targetRolesArray.includes('admin') || targetRolesArray.includes('master')) {
+          return res.status(403).json({ error: "Admin cannot change roles of other Admin or Master users" });
+        }
       }
 
       // Initialize array for dynamic update query
@@ -328,42 +372,47 @@ const authController = {
         params.push(mobile);
       }
 
-      // Ensure district_id, taluka_id, and village_id are integers
       if (district_id) {
         updateFields.push("district_id = $" + (params.length + 1));
-        params.push(parseInt(district_id, 10));  // Convert district_id to integer
+        params.push(parseInt(district_id, 10));
       }
 
       if (taluka_id) {
         updateFields.push("taluka_id = $" + (params.length + 1));
-        params.push(parseInt(taluka_id, 10));  // Convert taluka_id to integer
+        params.push(parseInt(taluka_id, 10));
       }
 
       if (village_id) {
         updateFields.push("village_id = $" + (params.length + 1));
-        params.push(parseInt(village_id, 10));  // Convert village_id to integer
+        params.push(parseInt(village_id, 10));
+      }
+
+      // If roles are provided and the user is allowed to change them
+      if (roles && (requestingRolesArray.includes('master') || requestingRolesArray.includes('admin'))) {
+        updateFields.push("roles = $" + (params.length + 1));
+        params.push(roles.split(',').map(role => role.trim()).join(', '));
       }
 
       // Ensure upload directory exists
       if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });  // Create directory if it doesn't exist
+        fs.mkdirSync(uploadDir, { recursive: true });
       }
 
       // Image upload and replacement logic
       if (image) {
-        const newImageName = `${user.username}${path.extname(image.originalname)}`;  // Set new image name
-        const newImagePath = path.join(uploadDir, newImageName);  // Full path for the new image
+        const newImageName = `${targetUser.username}${path.extname(image.originalname)}`;
+        const newImagePath = path.join(uploadDir, newImageName);
 
         // Remove existing image(s) with the same username if they exist
         const files = fs.readdirSync(uploadDir);
         files.forEach((file) => {
-          if (file.startsWith(user.username)) {
-            fs.unlinkSync(path.join(uploadDir, file));  // Delete old image
+          if (file.startsWith(targetUser.username)) {
+            fs.unlinkSync(path.join(uploadDir, file));
           }
         });
 
         // Write the buffer to a file (since Multer provided the image in buffer form)
-        fs.writeFileSync(newImagePath, image.buffer);  // Write buffer to the new image file
+        fs.writeFileSync(newImagePath, image.buffer);
 
         // Update the image field in the database
         updateFields.push("image = $" + (params.length + 1));
@@ -374,14 +423,15 @@ const authController = {
       if (updateFields.length === 0) {
         return res.status(400).json({ error: "No fields to update" });
       }
+
       params.push(userid);
       const updateQuery = `UPDATE users SET ${updateFields.join(", ")} WHERE id = $${params.length}`;
       const updateResult = await pool.query(updateQuery, params);
 
       if (updateResult.rowCount > 0) {
-        const updatedUserResult = await pool.query(checkUserQuery, [userid]);
+        const updatedUserResult = await pool.query(targetUserQuery, [userid]);
         const updatedUser = updatedUserResult.rows[0];
-        const { password, ...userWithoutPassword } = updatedUser;  // Exclude password
+        const { password, ...userWithoutPassword } = updatedUser; // Exclude password
 
         return res.status(200).json({
           success: true,
@@ -473,7 +523,78 @@ const authController = {
       console.error('Error fetching profile image:', error);
       res.status(500).json({ error: 'Error fetching profile image' });
     }
+  },
+  // Get all users if the requesting user has the "admin" role, with pagination, search, and sorting
+  getAllUsers: async (req, res) => {
+    try {
+      // Extract pagination, search, and sorting parameters from the query
+      const { page = 1, limit = 10, search = '', sortBy = 'created_at', order = 'asc' } = req.query;
+
+      // Fetch the user making the request
+      const { userid } = req.user;
+
+      // Query to fetch the roles of the requesting user
+      const userQuery = 'SELECT roles FROM users WHERE id = $1';
+      const userResult = await pool.query(userQuery, [userid]);
+      const user = userResult.rows[0];
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Check if the user has "Master" or "Admin" role
+      const rolesArray = user.roles.split(',').map(role => role.trim());
+      if (!rolesArray.includes('master') && !rolesArray.includes('admin')) {
+        return res.status(403).json({ error: "Unauthorized! Master or Admin access required." });
+      }
+
+      // Pagination calculations
+      const offset = (page - 1) * limit;
+
+      // Search filter logic
+      const searchQuery = `%${search.toLowerCase()}%`;
+
+      // Ensure valid sort order (asc or desc)
+      const validOrder = order.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+      // Whitelist of sortable columns to prevent SQL injection
+      const validSortColumns = ['id', 'email', 'username', 'roles', 'emailVerified', 'created_at'];
+      const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+
+      // Dynamic query to fetch users with pagination, search, and sorting
+      const allUsersQuery = `
+        SELECT id, email, username, roles, emailVerified, created_at
+        FROM users
+        WHERE LOWER(username) LIKE $1 OR LOWER(email) LIKE $1
+        ORDER BY ${sortColumn} ${validOrder}
+        LIMIT $2 OFFSET $3
+      `;
+
+      const allUsersResult = await pool.query(allUsersQuery, [searchQuery, limit, offset]);
+
+      // Query to get the total number of users for pagination purposes
+      const countQuery = `
+        SELECT COUNT(*) FROM users
+        WHERE LOWER(username) LIKE $1 OR LOWER(email) LIKE $1
+      `;
+      const countResult = await pool.query(countQuery, [searchQuery]);
+      const totalUsers = parseInt(countResult.rows[0].count, 10);
+
+      return res.status(200).json({
+        success: true,
+        users: allUsersResult.rows,
+        pagination: {
+          currentPage: parseInt(page, 10),
+          totalPages: Math.ceil(totalUsers / limit),
+          totalUsers
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
   }
+
 }
 
 module.exports = authController;
