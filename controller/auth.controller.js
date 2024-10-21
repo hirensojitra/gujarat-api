@@ -7,7 +7,6 @@ const fs = require('fs');
 const sharp = require('sharp');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-
 const generateUniqueId = async () => {
   // Generate a random 16-character alphanumeric string in lowercase
   const newId = crypto.randomBytes(8).toString('hex'); // 16 chars (8 bytes)
@@ -24,7 +23,6 @@ const generateUniqueId = async () => {
   // If the ID is unique, return it
   return newId;
 };
-
 // Email transporter setup
 const transporter = nodemailer.createTransport({
   service: 'gmail', // You can use any service
@@ -133,7 +131,6 @@ const authController = {
       res.json({ error: error.message });
     }
   },
-
   // Verify email
   verifyEmail: async (req, res) => {
     try {
@@ -169,7 +166,6 @@ const authController = {
       res.status(500).json({ error: 'Internal server error' });
     }
   },
-
   // Resend verification email
   resendVerification: async (req, res) => {
     const { email } = req.body;
@@ -238,10 +234,7 @@ const authController = {
       console.error("Error re-sending verification email:", error);
       res.status(500).json({ error: "Error re-sending verification email." });
     }
-  }
-
-  ,
-
+  },
   // Login user and return JWT token
   login: async (req, res) => {
     try {
@@ -276,7 +269,6 @@ const authController = {
       res.json({ error: error.message });
     }
   },
-
   // Check if username is available
   checkUsername: async (req, res) => {
     try {
@@ -292,7 +284,6 @@ const authController = {
       res.status(500).json({ success: false, message: "Internal Server Error" });
     }
   },
-
   // Check if email is available
   checkEmail: async (req, res) => {
     try {
@@ -308,7 +299,6 @@ const authController = {
       res.status(500).json({ success: false, message: "Internal Server Error" });
     }
   },
-
   // Update user details (requires authentication)
   updateUser: async (req, res) => {
     try {
@@ -478,7 +468,6 @@ const authController = {
           image = image.jpeg({ quality: parsedQuality }); // Apply quality setting
         }
       }
-
       // Handle format query parameter (defaults to jpeg if no format is provided)
       if (format) {
         switch (format.toLowerCase()) {
@@ -506,12 +495,10 @@ const authController = {
             image = image.jpeg();
         }
       }
-
       // Handle thumbnail request (resize for thumbnail)
       if (thumb) {
         image = image.resize(100); // Resize to 100px for thumbnail
       }
-
       // Set the appropriate content type based on format or fallback to 'image/jpeg'
       const contentType = format === 'png' ? 'image/png' : 'image/jpeg';
       res.set('Content-Type', contentType);
@@ -563,7 +550,7 @@ const authController = {
 
       // Dynamic query to fetch users with pagination, search, and sorting
       const allUsersQuery = `
-        SELECT id, email, username, roles, emailVerified, created_at
+        SELECT id, email, username, roles, emailVerified, created_at, firstname, lastname
         FROM users
         WHERE LOWER(username) LIKE $1 OR LOWER(email) LIKE $1
         ORDER BY ${sortColumn} ${validOrder}
@@ -594,7 +581,5 @@ const authController = {
       return res.status(500).json({ error: "Internal Server Error" });
     }
   }
-
 }
-
 module.exports = authController;
