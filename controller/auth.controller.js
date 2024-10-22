@@ -39,7 +39,7 @@ const authController = {
 
       const trimmedEmail = email.trim();
       const trimmedPassword = password.trim();
-      const trimmedUsername = username.trim();
+      const trimmedUsername = username.trim().toLowerCase();
       const userRoles = Array.isArray(roles) ? roles.map(role => role.trim()).join(', ') : '';
 
       // Check if email or username already exists
@@ -70,7 +70,7 @@ const authController = {
         trimmedEmail,
         hashedPassword,
         trimmedUsername,
-        ['viewer'],
+        ['user'],
         false, // emailVerified
         verificationToken,
         tokenExpiration,
@@ -242,7 +242,7 @@ const authController = {
       const { username, password } = req.body;
 
       const userQuery = `SELECT * FROM users WHERE username = $1`;
-      const userResult = await pool.query(userQuery, [username]);
+      const userResult = await pool.query(userQuery, [username.toLowerCase()]);
       const user = userResult.rows[0];
 
       if (!user) {
@@ -276,7 +276,7 @@ const authController = {
       const { username } = req.body;
       const checkUsernameQuery = "SELECT * FROM users WHERE username = $1";
 
-      const results = await pool.query(checkUsernameQuery, [username]);
+      const results = await pool.query(checkUsernameQuery, [username.toLowerCase()]);
       const isUsernameTaken = results.rows.length > 0;
 
       res.json({ isTaken: isUsernameTaken });
@@ -375,7 +375,10 @@ const authController = {
           return res.status(403).json({ error: "You are not allowed to change roles" });
         }
       }
-
+      if (username) {
+        updateFields.push("username = $" + (params.length + 1));
+        params.push(username.toLowerCase()); // Save username in lowercase
+      }
       // Ensure upload directory exists
       if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
@@ -498,7 +501,7 @@ const authController = {
       }
 
       // If the profile image does not exist, generate an image with initials
-      const initials = (firstname && lastname) ? `${firstname.charAt(0)}${lastname.charAt(0)}`.toUpperCase() : 'N/A';
+      const initials = (firstname && lastname) ? `${firstname.charAt(0)}${lastname.charAt(0)}`.toUpperCase() : 'User';
 
       // Create a placeholder image with initials using Canvas
       const canvas = createCanvas(200, 200);
