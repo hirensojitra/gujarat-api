@@ -573,7 +573,9 @@ const authController = {
 
       // Dynamic query to fetch users with pagination, search, and sorting
       const allUsersQuery = `
-        SELECT id, email, username, roles, emailVerified, created_at, firstname, lastname
+        SELECT id, email, username, roles, emailVerified, created_at, mobile,
+               COALESCE(firstname, '') AS firstname, 
+               COALESCE(lastname, '') AS lastname
         FROM users
         WHERE LOWER(username) LIKE $1 OR LOWER(email) LIKE $1
         ORDER BY ${sortColumn} ${validOrder}
@@ -590,9 +592,22 @@ const authController = {
       const countResult = await pool.query(countQuery, [searchQuery]);
       const totalUsers = parseInt(countResult.rows[0].count, 10);
 
+      // Process the result to add the "fullname" field
+      const users = allUsersResult.rows.map(user => {
+        const { firstname, lastname } = user;
+        let fullname = `${firstname} ${lastname}`.trim();
+        if (!firstname && !lastname) {
+          fullname = "GujaratUvach User";
+        }
+        return {
+          ...user,
+          fullname
+        };
+      });
+
       return res.status(200).json({
         success: true,
-        users: allUsersResult.rows,
+        users,
         pagination: {
           currentPage: parseInt(page, 10),
           totalPages: Math.ceil(totalUsers / limit),
