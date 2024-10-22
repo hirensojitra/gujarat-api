@@ -321,11 +321,6 @@ const authController = {
 
       const requestingRolesArray = requestingUser.roles.split(',').map(role => role.trim());
 
-      // Only "Master" and "Admin" can change roles
-      if (!requestingRolesArray.includes('master') && !requestingRolesArray.includes('admin')) {
-        return res.status(403).json({ error: "You are not allowed to change roles" });
-      }
-
       // Fetch the target user to be updated
       const targetUserQuery = 'SELECT * FROM users WHERE id = $1';
       const targetUserResult = await pool.query(targetUserQuery, [userid]);
@@ -335,19 +330,11 @@ const authController = {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Only Master can change Admin or Master roles
-      if (roles && requestingRolesArray.includes('admin')) {
-        const targetRolesArray = targetUser.roles.split(',').map(role => role.trim());
-        if (targetRolesArray.includes('admin') || targetRolesArray.includes('master')) {
-          return res.status(403).json({ error: "Admin cannot change roles of other Admin or Master users" });
-        }
-      }
-
       // Initialize array for dynamic update query
       const updateFields = [];
       const params = [];
 
-      // Update fields if provided
+      // Update fields if provided (all users can update their own profile data except roles)
       if (firstname) {
         updateFields.push("firstname = $" + (params.length + 1));
         params.push(firstname);
@@ -378,10 +365,15 @@ const authController = {
         params.push(parseInt(village_id, 10));
       }
 
-      // If roles are provided and the user is allowed to change them
-      if (roles && (requestingRolesArray.includes('master') || requestingRolesArray.includes('admin'))) {
-        updateFields.push("roles = $" + (params.length + 1));
-        params.push(roles.split(',').map(role => role.trim()).join(', '));
+      // Ensure only "master" and "admin" can change roles
+      if (roles) {
+        if (requestingRolesArray.includes('master') || requestingRolesArray.includes('admin')) {
+          updateFields.push("roles = $" + (params.length + 1));
+          params.push(roles.split(',').map(role => role.trim()).join(', '));
+        } else {
+          // If the user doesn't have "master" or "admin" privileges and tries to change roles
+          return res.status(403).json({ error: "You are not allowed to change roles" });
+        }
       }
 
       // Ensure upload directory exists
