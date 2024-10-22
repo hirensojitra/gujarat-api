@@ -304,7 +304,7 @@ const authController = {
   updateUser: async (req, res) => {
     try {
       const { userid } = req.params;
-      const { firstname, lastname, mobile, district_id, taluka_id, village_id, roles } = req.body; // Include roles in the body
+      const { firstname, lastname, mobile, district_id, taluka_id, village_id, roles, username } = req.body; // Include roles in the body
       const image = req.file;  // Multer handles file uploads in buffer format
 
       // Fetch the user making the request
