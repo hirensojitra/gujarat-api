@@ -487,13 +487,9 @@ const authController = {
               image = image.jpeg();
           }
         }
-
-        // Handle thumbnail request
         if (thumb) {
-          image = image.resize(100); // Resize to 100px for thumbnail
+          image = image.resize(100);
         }
-
-        // Set the content type based on format (fallback to 'image/jpeg')
         const contentType = format === 'png' ? 'image/png' : 'image/jpeg';
         res.set('Content-Type', contentType);
 
@@ -514,7 +510,7 @@ const authController = {
 
       // Set text style and color for initials
       ctx.fillStyle = '#000000'; // Black text
-      ctx.font = 'bold 100px Arial';
+      ctx.font = 'bold 50px Arial'; // 50% smaller font size (from 100px to 50px)
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(initials, 100, 100); // Draw initials in the center
@@ -533,6 +529,7 @@ const authController = {
       return res.status(500).json({ error: 'Error fetching profile image' });
     }
   }
+
   ,
   // Get all users if the requesting user has the "admin" role, with pagination, search, and sorting
   getAllUsers: async (req, res) => {
