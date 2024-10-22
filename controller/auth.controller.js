@@ -7,6 +7,7 @@ const fs = require('fs');
 const sharp = require('sharp');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const { createCanvas } = require('canvas');
 const generateUniqueId = async () => {
   // Generate a random 16-character alphanumeric string in lowercase
   const newId = crypto.randomBytes(8).toString('hex'); // 16 chars (8 bytes)
@@ -436,81 +437,111 @@ const authController = {
       return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
   },
+  // Use canvas to generate images with initials
   getProfileImage: async (req, res) => {
-
     const { username } = req.params;
     const { quality, format, thumb } = req.query;
+
     try {
-      // Fetch user profile data from the database to get image URL
-      const userResult = await pool.query('SELECT image FROM users WHERE username = $1', [username]);
+      // Fetch user profile data (image, first name, last name) from the database
+      const userResult = await pool.query('SELECT image, firstname, lastname FROM users WHERE username = $1', [username]);
 
       // Check if the user exists
       if (userResult.rows.length === 0) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      // Extract the image name from the user's profile data
-      const imageName = userResult.rows[0].image;
+      // Extract image name, first name, and last name from the user's profile data
+      const { image: imageName, firstname, lastname } = userResult.rows[0];
       const imagePath = path.join(__dirname, `../uploads/profile-image/${imageName}`);
 
-      // Check if the file exists in the filesystem
-      if (!fs.existsSync(imagePath)) {
-        return res.status(404).json({ error: 'Profile image not found on the filesystem' });
-      }
+      // Check if the profile image file exists
+      if (imageName && fs.existsSync(imagePath)) {
+        // If the image exists, process it using sharp
+        let image = sharp(imagePath);
 
-      // Process the image using sharp
-      let image = sharp(imagePath);
-
-      // Handle quality query parameter
-      if (quality) {
-        const parsedQuality = parseInt(quality);
-        if (!isNaN(parsedQuality)) {
-          image = image.jpeg({ quality: parsedQuality }); // Apply quality setting
+        // Handle quality query parameter
+        if (quality) {
+          const parsedQuality = parseInt(quality);
+          if (!isNaN(parsedQuality)) {
+            image = image.jpeg({ quality: parsedQuality });
+          }
         }
-      }
-      // Handle format query parameter (defaults to jpeg if no format is provided)
-      if (format) {
-        switch (format.toLowerCase()) {
-          case 'png':
-            image = image.png();
-            break;
-          case 'webp':
-            image = image.webp();
-            break;
-          case 'jpeg':
-          case 'jpg':
-            image = image.jpeg();
-            break;
-          case 'gif':
-            image = image.gif();
-            break;
-          case 'tiff':
-          case 'tif':
-            image = image.tiff();
-            break;
-          case 'bmp':
-            image = image.bmp();
-            break;
-          default:
-            image = image.jpeg();
-        }
-      }
-      // Handle thumbnail request (resize for thumbnail)
-      if (thumb) {
-        image = image.resize(100); // Resize to 100px for thumbnail
-      }
-      // Set the appropriate content type based on format or fallback to 'image/jpeg'
-      const contentType = format === 'png' ? 'image/png' : 'image/jpeg';
-      res.set('Content-Type', contentType);
 
-      // Stream the processed image back to the client
-      image.pipe(res);
+        // Handle format query parameter
+        if (format) {
+          switch (format.toLowerCase()) {
+            case 'png':
+              image = image.png();
+              break;
+            case 'webp':
+              image = image.webp();
+              break;
+            case 'jpeg':
+            case 'jpg':
+              image = image.jpeg();
+              break;
+            case 'gif':
+              image = image.gif();
+              break;
+            case 'tiff':
+            case 'tif':
+              image = image.tiff();
+              break;
+            case 'bmp':
+              image = image.bmp();
+              break;
+            default:
+              image = image.jpeg();
+          }
+        }
+
+        // Handle thumbnail request
+        if (thumb) {
+          image = image.resize(100); // Resize to 100px for thumbnail
+        }
+
+        // Set the content type based on format (fallback to 'image/jpeg')
+        const contentType = format === 'png' ? 'image/png' : 'image/jpeg';
+        res.set('Content-Type', contentType);
+
+        // Stream the processed image back to the client
+        return image.pipe(res);
+      }
+
+      // If the profile image does not exist, generate an image with initials
+      const initials = (firstname && lastname) ? `${firstname.charAt(0)}${lastname.charAt(0)}`.toUpperCase() : 'N/A';
+
+      // Create a placeholder image with initials using Canvas
+      const canvas = createCanvas(200, 200);
+      const ctx = canvas.getContext('2d');
+
+      // Set background color
+      ctx.fillStyle = '#cccccc'; // Light grey background
+      ctx.fillRect(0, 0, 200, 200);
+
+      // Set text style and color for initials
+      ctx.fillStyle = '#000000'; // Black text
+      ctx.font = 'bold 100px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(initials, 100, 100); // Draw initials in the center
+
+      // Convert the canvas to a PNG buffer
+      const buffer = canvas.toBuffer();
+
+      // Set the content type for the placeholder image
+      res.set('Content-Type', 'image/png');
+
+      // Send the placeholder image back as a response
+      return res.send(buffer);
 
     } catch (error) {
       console.error('Error fetching profile image:', error);
-      res.status(500).json({ error: 'Error fetching profile image' });
+      return res.status(500).json({ error: 'Error fetching profile image' });
     }
-  },
+  }
+  ,
   // Get all users if the requesting user has the "admin" role, with pagination, search, and sorting
   getAllUsers: async (req, res) => {
     try {
