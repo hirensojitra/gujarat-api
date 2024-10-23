@@ -17,6 +17,9 @@ router.get('/profile-image/:username', authController.getProfileImage);
 router.get('/verify-email', authController.verifyEmail);
 router.post('/resend-verification', authController.resendVerification);
 router.get('/users', authenticateToken, authController.getAllUsers);
+router.post("/forgot-password", authController.requestPasswordReset);
+router.post("/reset-password", authController.resetPassword);
+router.post("/validate-reset-token", authController.validateResetToken);
 
 
 module.exports = router;

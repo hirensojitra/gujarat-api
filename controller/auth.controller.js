@@ -8,6 +8,7 @@ const sharp = require('sharp');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { createCanvas } = require('canvas');
+const moment = require('moment');
 const generateUniqueId = async () => {
   // Generate a random 16-character alphanumeric string in lowercase
   const newId = crypto.randomBytes(8).toString('hex'); // 16 chars (8 bytes)
@@ -32,11 +33,11 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASSWORD,
   },
 });
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 const authController = {
   register: async (req, res) => {
     try {
       const { email, password, username, roles } = req.body;
-
       const trimmedEmail = email.trim();
       const trimmedPassword = password.trim();
       const trimmedUsername = username.trim().toLowerCase();
@@ -70,7 +71,7 @@ const authController = {
         trimmedEmail,
         hashedPassword,
         trimmedUsername,
-        ['user'],
+        'user',
         false, // emailVerified
         verificationToken,
         tokenExpiration,
@@ -80,18 +81,14 @@ const authController = {
       if (insertUserResult.rowCount > 0) {
         // Generate the token
         const verificationToken = crypto.randomBytes(32).toString('hex');
-
         // Hash the token before saving it to the database
         const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
-
         // Save the hashed token and the expiration time in the database
         const tokenExpiration = new Date();
         tokenExpiration.setHours(tokenExpiration.getHours() + 1); // Token expires in 1 hour
         await pool.query('UPDATE users SET verificationToken = $1, tokenExpiration = $2 WHERE email = $3', [hashedToken, tokenExpiration, trimmedEmail]);
-
         // Generate the verification link with the unhashed token
         const verificationLink = `${req.headers.origin}/verify-email?token=${encodeURIComponent(verificationToken)}&email=${encodeURIComponent(trimmedEmail)}`;
-
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: trimmedEmail,
@@ -256,11 +253,12 @@ const authController = {
           process.env.JWT_SECRET || "3812932sjad43&*@", // Use environment variable for secret
           { expiresIn: "1y" }
         );
-        const userData = {
-          ...user,
-          password: undefined, // Remove password
-          token: accessToken // Include the token in the userData object
-        };
+
+        // Create a new userData object, excluding sensitive fields
+        const { password, verificationtoken, tokenexpiration, resettoken, resettokenexpiration, ...userData } = user;
+
+        userData.token = accessToken; // Include the token in the userData object
+
         return res.status(200).json(userData);
       } else {
         return res.json({ error: "Wrong password!" });
@@ -306,7 +304,8 @@ const authController = {
       const { userid } = req.params;
       const { firstname, lastname, mobile, district_id, taluka_id, village_id, roles, username } = req.body; // Include roles in the body
       const image = req.file;  // Multer handles file uploads in buffer format
-
+      const capitalizedFirstname = firstname ? capitalize(firstname.trim()) : null;
+      const capitalizedLastname = lastname ? capitalize(lastname.trim()) : null;
       // Fetch the user making the request
       const { userid: requestingUserId } = req.user;
 
@@ -335,14 +334,14 @@ const authController = {
       const params = [];
 
       // Update fields if provided (all users can update their own profile data except roles)
-      if (firstname) {
+      if (capitalizedFirstname) {
         updateFields.push("firstname = $" + (params.length + 1));
-        params.push(firstname);
+        params.push(capitalizedFirstname);
       }
 
-      if (lastname) {
+      if (capitalizedLastname) {
         updateFields.push("lastname = $" + (params.length + 1));
-        params.push(lastname);
+        params.push(capitalizedLastname);
       }
 
       if (mobile) {
@@ -618,6 +617,170 @@ const authController = {
       console.error("Error fetching users:", error);
       return res.status(500).json({ error: "Internal Server Error" });
     }
+  },
+  requestPasswordReset: async (req, res) => {
+    try {
+      const { email } = req.body;
+      const userQuery = `SELECT * FROM users WHERE email = $1`;
+      const userResult = await pool.query(userQuery, [email.trim()]);
+      const user = userResult.rows[0];
+      if (!user) {
+        return res.status(404).json({ error: "User with this email does not exist." });
+      }
+
+      // Generate a reset token and expiration date (valid for 10 minutes)
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+      const tokenExpiration = new Date(Date.now() + 10 * 60 * 1000); // Token expires in 10 minutes
+
+      // Update the user with the reset token and expiration
+      await pool.query('UPDATE users SET resettoken = $1, resettokenexpiration = $2 WHERE email = $3',
+        [hashedToken, tokenExpiration, email]);
+      // Generate reset link
+      const resetLink = `${req.headers.origin}/auth/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(email)}`;
+
+      // Send email with reset link
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Password Reset Request',
+        html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <h2 style="text-align: center; color: #333;">Password Reset Request</h2>
+          <p style="font-size: 16px; color: #333;">Hi <strong>${user.username}</strong>,</p>
+          <p style="font-size: 16px; color: #333;">
+            We received a request to reset your password. Click the button below to reset it. This link will expire in 10 minutes.
+          </p>
+          <p style="text-align: center;">
+            <a href="${resetLink}" 
+              style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">Reset Password
+            </a>
+          </p>
+          <p style="font-size: 14px; color: #666; text-align: center;">Or copy and paste the following link into your browser:</p>
+          <p style="font-size: 14px; color: #666; word-break: break-all; text-align: center;">
+            <a href="${resetLink}" style="color: #28a745;">${resetLink}</a>
+          </p>
+          <hr style="border: 0; border-top: 1px solid #eee;">
+          <p style="font-size: 12px; color: #999; text-align: center;">If you did not request a password reset, please ignore this email.</p>
+      </div>
+      `
+      };
+
+      await transporter.sendMail(mailOptions);
+
+      res.json({ success: true, message: 'Password reset email sent successfully.' });
+    } catch (error) {
+      console.error('Error during password reset request:', error);
+      res.status(500).json({ error: 'Internal server error.' });
+    }
+  },
+  resetPassword: async (req, res) => {
+    const { token, email, password } = req.body;
+    try {
+      // Check if the token and email match in the database
+      const tokenCheckQuery = 'SELECT resettoken, resettokenexpiration FROM users WHERE email = $1';
+      const tokenCheckResult = await pool.query(tokenCheckQuery, [email]);
+
+      if (tokenCheckResult.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Invalid email or token' });
+      }
+
+      const user = tokenCheckResult.rows[0];
+
+      // Hash the incoming token to match the stored hashed token
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+      // Check if the reset token matches
+      if (user.resettoken !== hashedToken) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
+      }
+
+      // Check if the token has expired
+      const now = new Date();
+      if (now > user.resettokenexpiration) {
+        return res.status(400).json({ success: false, message: 'Reset token has expired' });
+      }
+
+      // Hash the new password and update it
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const updateQuery = 'UPDATE users SET password = $1, resettoken = NULL, resettokenexpiration = NULL WHERE email = $2 AND resettoken = $3';
+      const values = [hashedPassword, email, hashedToken];
+
+      await pool.query(updateQuery, values);
+
+      return res.json({ success: true, message: 'Password reset successfully' });
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      return res.status(500).json({ success: false, message: 'Error resetting password' });
+    }
   }
+  ,
+  validateResetToken: async (req, res) => {
+    const { token, email } = req.body;
+
+    if (!token || !email) {
+      return res.status(400).json({ success: false, message: 'Token and email are required' });
+    }
+
+    try {
+      // Call the PostgreSQL function to validate the token
+      const result = await pool.query('SELECT * FROM validate_reset_token($1, $2)', [token, email]);
+
+      const { success, message } = result.rows[0];
+
+      if (success) {
+        return res.json({ success: true, message });
+      } else {
+        return res.status(400).json({ success: false, message });
+      }
+    } catch (error) {
+      console.error('Error validating reset token:', error);
+      return res.status(500).json({ success: false, message: 'Error validating token' });
+    }
+  }
+  // validateResetToken: async (req, res) => {
+  //   const { token, email } = req.body;
+
+  //   // Validate input
+  //   if (!token || !email) {
+  //     return res.status(400).json({ success: false, message: 'Token and email are required' });
+  //   }
+
+  //   try {
+  //     // Check if the email exists in the database
+  //     const result = await pool.query('SELECT resettoken, resettokenexpiration FROM users WHERE email = $1', [email]);
+
+  //     // If no user found for the provided email
+  //     if (result.rows.length === 0) {
+  //       return res.status(400).json({ success: false, message: 'Invalid email' });
+  //     }
+
+  //     const user = result.rows[0];
+
+  //     // Hash the incoming token to match the stored hashed token
+  //     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+  //     // Check if the provided token matches the stored reset token
+  //     if (!user.resettoken || user.resettoken !== hashedToken) {
+  //       return res.status(400).json({ success: false, message: 'Invalid or missing token' });
+  //     }
+
+  //     // Check if the token has expired
+  //     const isExpired = moment().isAfter(moment(user.resettokenexpiration));
+
+  //     if (isExpired) {
+  //       // Optionally clear the token if it's expired
+  //       await pool.query('UPDATE users SET resettoken = NULL, resettokenexpiration = NULL WHERE email = $1', [email]);
+
+  //       return res.status(400).json({ success: false, message: 'Token expired' });
+  //     }
+
+  //     // Token is valid
+  //     return res.json({ success: true, message: 'Token is valid' });
+  //   } catch (error) {
+  //     console.error('Error validating reset token:', error);
+  //     return res.status(500).json({ success: false, message: 'Error validating token' });
+  //   }
+  // }
 }
 module.exports = authController;
