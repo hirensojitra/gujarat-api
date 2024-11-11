@@ -394,7 +394,7 @@ const imgController = {
                 }
 
                 // Save the new image details in the database
-                const newImageUrl = `/uploads/${folderId}/${req.file.filename}`;
+                const newImageUrl = `/uploads/${req.file.filename}`;
                 const updateQuery = `
                     UPDATE user_images 
                     SET image_url = $1 
