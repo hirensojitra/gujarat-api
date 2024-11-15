@@ -221,8 +221,7 @@ const postController = {
             console.error("Error retrieving soft-deleted data:", error);
             res.status(500).json({ error: "Internal Server Error" });
         }
-    }
-    ,
+    },
     getPostLength: async (req, res) => {
         try {
             const query = `
