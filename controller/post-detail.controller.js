@@ -168,23 +168,61 @@ const postController = {
     },
     getAllSoftDeletedData: async (req, res) => {
         try {
-            const { page } = req.query;
-            const pageSize = 12;
-            const offset = (page - 1) * pageSize;
-            const query = `
-        SELECT * FROM post_details
-        WHERE deleted = true
-        ORDER BY deleted_at DESC
-        OFFSET $1
-        LIMIT $2
-      `;
-            const { rows } = await pool.query(query, [offset, pageSize]);
-            res.json(rows);
+            // Extract pagination, search, and sorting parameters from the query
+            const { page = 1, limit = 12, search = '', sortBy = 'deleted_at', order = 'desc' } = req.query;
+
+            // Pagination calculations
+            const pageSize = parseInt(limit, 10);
+            const offset = (parseInt(page, 10) - 1) * pageSize;
+
+            // Search filter logic
+            const searchQuery = `%${search.toLowerCase()}%`;
+
+            // Ensure valid sort order (asc or desc)
+            const validOrder = order.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+            // Whitelist of sortable columns to prevent SQL injection
+            const validSortColumns = ['id', 'title', 'deleted_at'];
+            const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'deleted_at';
+
+            // Dynamic query to fetch soft-deleted posts with pagination, search, and sorting
+            const postsQuery = `
+                SELECT * 
+                FROM post_details
+                WHERE deleted = true
+                  AND (LOWER(title) LIKE $1)
+                ORDER BY ${sortColumn} ${validOrder}
+                LIMIT $2 OFFSET $3;
+            `;
+
+            // Execute the query
+            const postsResult = await pool.query(postsQuery, [searchQuery, pageSize, offset]);
+
+            // Query to get the total number of soft-deleted posts for pagination purposes
+            const countQuery = `
+                SELECT COUNT(*) FROM post_details
+                WHERE deleted = true
+                  AND (LOWER(title) LIKE $1);
+            `;
+            const countResult = await pool.query(countQuery, [searchQuery]);
+            const totalPosts = parseInt(countResult.rows[0].count, 10);
+
+            // Send the response with posts and pagination details
+            res.status(200).json({
+                success: true,
+                posts: postsResult.rows,
+                pagination: {
+                    currentPage: parseInt(page, 10),
+                    totalPages: Math.ceil(totalPosts / pageSize),
+                    totalPosts
+                }
+            });
         } catch (error) {
-            console.error("Error retrieving soft deleted data:", error);
+            console.error("Error retrieving soft-deleted data:", error);
             res.status(500).json({ error: "Internal Server Error" });
         }
-    },
+    }
+    ,
     getPostLength: async (req, res) => {
         try {
             const query = `
