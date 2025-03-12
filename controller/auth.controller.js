@@ -1,4 +1,4 @@
-const { OAuth2Client } = require('google-auth-library');
+const { OAuth2Client } = require("google-auth-library");
 const pool = require("../database/index");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -10,7 +10,9 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const { createCanvas } = require("canvas");
 const moment = require("moment");
-const client = new OAuth2Client('650577899089-eq5q93v869b5qvi6vllcq81o8v06ubsm.apps.googleusercontent.com');
+const client = new OAuth2Client(
+  "650577899089-eq5q93v869b5qvi6vllcq81o8v06ubsm.apps.googleusercontent.com"
+);
 const generateUniqueId = async () => {
   // Generate a random 16-character alphanumeric string in lowercase
   const newId = crypto.randomBytes(8).toString("hex"); // 16 chars (8 bytes)
@@ -899,23 +901,27 @@ const authController = {
       if (!idToken) {
         return res.status(400).json({ error: "No token provided" });
       }
-  
+
       // Verify the Google token
       const ticket = await client.verifyIdToken({
         idToken: idToken,
-        audience: '650577899089-eq5q93v869b5qvi6vllcq81o8v06ubsm.apps.googleusercontent.com',
+        audience:
+          "650577899089-eq5q93v869b5qvi6vllcq81o8v06ubsm.apps.googleusercontent.com",
       });
-  
+
       const payload = ticket.getPayload(); // Extract user info
-  
+
       if (!payload.email_verified) {
         return res.status(400).json({ error: "Email not verified by Google" });
       }
-  
+
       // Check if user already exists in the database
-      let userResult = await pool.query('SELECT * FROM users WHERE email = $1', [payload.email]);
+      let userResult = await pool.query(
+        "SELECT * FROM users WHERE email = $1",
+        [payload.email]
+      );
       let user;
-  
+
       if (userResult.rows.length > 0) {
         user = userResult.rows[0];
       } else {
@@ -925,22 +931,34 @@ const authController = {
           VALUES ($1, $2, $3, $4, NOW())
           RETURNING *;
         `;
-        const values = [payload.email, payload.name, payload.sub, payload.picture];
+        const values = [
+          payload.email,
+          payload.name,
+          payload.sub,
+          payload.picture,
+        ];
         const insertResult = await pool.query(insertQuery, values);
         user = insertResult.rows[0];
       }
-  
+
       // Generate a JWT token similar to the login endpoint
       const accessToken = jwt.sign(
         { userid: user.id },
         process.env.JWT_SECRET || "3812932sjad43&*@", // Use environment variable for secret
         { expiresIn: "1y" }
       );
-  
+
       // Create a new userData object, excluding sensitive fields
-      const { password, verificationtoken, tokenexpiration, resettoken, resettokenexpiration, ...userData } = user;
+      const {
+        password,
+        verificationtoken,
+        tokenexpiration,
+        resettoken,
+        resettokenexpiration,
+        ...userData
+      } = user;
       userData.token = accessToken; // Include the token in the userData object
-  
+
       return res.status(200).json(userData);
     } catch (error) {
       console.error("Google Auth Error:", error);
