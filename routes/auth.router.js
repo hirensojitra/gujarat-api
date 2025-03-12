@@ -16,6 +16,8 @@ router.post("/login", authController.login);
 router.get('/profile-image/:username', authController.getProfileImage);
 router.get('/verify-email', authController.verifyEmail);
 router.post('/resend-verification', authController.resendVerification);
+router.post('/google', authController.googleAuth);
+router.post('/facebook', authController.facebookAuth);
 router.get('/users', authenticateToken, authController.getAllUsers);
 router.post("/forgot-password", authController.requestPasswordReset);
 router.post("/reset-password", authController.resetPassword);
