@@ -897,7 +897,7 @@ const authController = {
     try {
       const { idToken } = req.body;
       if (!idToken) {
-        return res.status(400).json({ success: false, message: "No token provided" });
+        return res.status(400).json({ error: "No token provided" });
       }
   
       // Verify the Google token
@@ -909,7 +909,7 @@ const authController = {
       const payload = ticket.getPayload(); // Extract user info
   
       if (!payload.email_verified) {
-        return res.status(400).json({ success: false, message: "Email not verified by Google" });
+        return res.status(400).json({ error: "Email not verified by Google" });
       }
   
       // Check if user already exists in the database
@@ -930,13 +930,21 @@ const authController = {
         user = insertResult.rows[0];
       }
   
-      // Generate a JWT token
-      const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+      // Generate a JWT token similar to the login endpoint
+      const accessToken = jwt.sign(
+        { userid: user.id },
+        process.env.JWT_SECRET || "3812932sjad43&*@", // Use environment variable for secret
+        { expiresIn: "1y" }
+      );
   
-      res.json({ success: true, token, user });
+      // Create a new userData object, excluding sensitive fields
+      const { password, verificationtoken, tokenexpiration, resettoken, resettokenexpiration, ...userData } = user;
+      userData.token = accessToken; // Include the token in the userData object
+  
+      return res.status(200).json(userData);
     } catch (error) {
       console.error("Google Auth Error:", error);
-      res.status(500).json({ success: false, message: "Internal server error" });
+      return res.status(500).json({ error: "Internal server error" });
     }
   },
   facebookAuth: async (req, res) => {
