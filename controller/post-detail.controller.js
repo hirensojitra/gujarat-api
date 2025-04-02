@@ -99,17 +99,19 @@ const postController = {
         download_counter,
         published,
       } = req.body;
+
       const jsonData = JSON.stringify(data);
-      const currentUTC = new Date().toISOString();
-      const currentIST = new Date(currentUTC).toLocaleString("en-US", {
-        timeZone: "Asia/Kolkata",
-      });
+      const currentUTC = new Date(); // Corrected: Use Date object directly
       const newPostId = Math.random().toString(36).substr(2, 9);
+
       const insertQuery = `
-                INSERT INTO post_details (deleted, h, w, title, info, info_show, backgroundurl, data, download_counter, created_at,published, updated_at,id)
-                VALUES (false, $1, $2, $3, $4, $5, $6, $7, $8, $9, $9,$10,$11)
-                RETURNING id
-            `;
+          INSERT INTO post_details 
+          (deleted, h, w, title, info, info_show, backgroundurl, data, download_counter, created_at, published, updated_at, id)
+          VALUES 
+          (false, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9, $11)
+          RETURNING id
+      `;
+
       const { rows } = await pool.query(insertQuery, [
         h,
         w,
@@ -119,10 +121,11 @@ const postController = {
         backgroundurl,
         jsonData,
         download_counter,
-        currentIST,
-        newPostId,
-        published,
+        currentUTC, // Now correctly a Date object
+        published, // Now correctly placed
+        newPostId, // ID placed correctly
       ]);
+
       res
         .status(201)
         .json({ id: rows[0].id, message: "Post added successfully" });
