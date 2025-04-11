@@ -19,6 +19,7 @@ const thumbImagesRouter = require('./routes/thumb-images.router')
 const folderRouter = require('./routes/img.router')
 const userImgRouter = require('./routes/user-img.router')
 const tokenRouter = require('./routes/token.router');
+const trackRouter = require('./routes/track.router');
 
 app.use("/api/v1/posts", postsRouter)
 app.use("/api/v1/post-detail", postDetail)
@@ -31,6 +32,7 @@ app.use("/api/v1/thumb-images", thumbImagesRouter)
 app.use("/api/v1/img", folderRouter)
 app.use("/api/v1/user-img", userImgRouter)
 app.use('/api/v1/', tokenRouter);
+app.use('/api/v1/track', trackRouter);
 
 const PORT = process.env.PORT || 5000
 
