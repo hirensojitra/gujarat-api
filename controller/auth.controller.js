@@ -373,7 +373,7 @@ const authController = {
         village_id,
         roles,
         username,
-      } = req.body; // Include roles in the body
+      } = req.body;
       const image = req.file; // Multer handles file uploads in buffer format
       const capitalizedFirstname = firstname
         ? capitalize(firstname.trim())
@@ -426,19 +426,19 @@ const authController = {
         params.push(mobile);
       }
 
-      if (district_id) {
+      if (district_id !== undefined) {
         updateFields.push("district_id = $" + (params.length + 1));
-        params.push(parseInt(district_id, 10));
+        params.push(district_id?parseInt(district_id, 10):district_id);
       }
 
-      if (taluka_id) {
+      if (taluka_id !== undefined) {
         updateFields.push("taluka_id = $" + (params.length + 1));
-        params.push(parseInt(taluka_id, 10));
+        params.push(taluka_id?parseInt(taluka_id, 10):taluka_id);
       }
 
-      if (village_id) {
+      if (village_id !== undefined) {
         updateFields.push("village_id = $" + (params.length + 1));
-        params.push(parseInt(village_id, 10));
+        params.push(village_id?parseInt(village_id, 10):village_id);
       }
 
       // Ensure only "master" and "admin" can change roles

@@ -98,20 +98,22 @@ const postController = {
         data,
         download_counter,
         published,
+        track    // <-- Added new field track from req.body
       } = req.body;
-
+  
       const jsonData = JSON.stringify(data);
-      const currentUTC = new Date(); // Corrected: Use Date object directly
+      const currentUTC = new Date(); // Using Date object for created_at/updated_at
       const newPostId = Math.random().toString(36).substr(2, 9);
-
+  
       const insertQuery = `
-          INSERT INTO post_details 
-          (deleted, h, w, title, info, info_show, backgroundurl, data, download_counter, created_at, published, updated_at, id)
-          VALUES 
-          (false, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9, $11)
-          RETURNING id
+        INSERT INTO post_details 
+          (deleted, h, w, title, info, info_show, backgroundurl, data, download_counter, created_at, published, track, updated_at, id)
+        VALUES 
+          (false, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $9, $12)
+        RETURNING id
       `;
-
+  
+      // Note: Here we use 'currentUTC' for both created_at and updated_at.
       const { rows } = await pool.query(insertQuery, [
         h,
         w,
@@ -121,14 +123,13 @@ const postController = {
         backgroundurl,
         jsonData,
         download_counter,
-        currentUTC, // Now correctly a Date object
-        published, // Now correctly placed
-        newPostId, // ID placed correctly
+        currentUTC,      // $9 => created_at and also reused for updated_at in this query
+        published,       // $10
+        track,           // $11
+        newPostId        // $12 (id)
       ]);
-
-      res
-        .status(201)
-        .json({ id: rows[0].id, message: "Post added successfully" });
+  
+      res.status(201).json({ id: rows[0].id, message: "Post added successfully" });
     } catch (error) {
       console.error("Error adding post:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -147,26 +148,31 @@ const postController = {
         data,
         download_counter,
         published,
+        track   // <-- Added new field track from req.body
       } = req.body;
+  
       const jsonData = JSON.stringify(data);
       const currentUTC = new Date().toISOString();
       const currentIST = new Date(currentUTC).toLocaleString("en-US", {
         timeZone: "Asia/Kolkata",
       });
+  
       const updateQuery = `
-                UPDATE post_details
-                SET h = $1,
-                    w = $2,
-                    title = $3,
-                    info = $4,
-                    info_show = $5,
-                    backgroundurl = $6,
-                    data = $7,
-                    updated_at = $8,
-                    download_counter = $9,
-                    published = $10
-                WHERE id = $11
-            `;
+        UPDATE post_details
+        SET h = $1,
+            w = $2,
+            title = $3,
+            info = $4,
+            info_show = $5,
+            backgroundurl = $6,
+            data = $7,
+            updated_at = $8,
+            download_counter = $9,
+            published = $10,
+            track = $11
+        WHERE id = $12
+      `;
+  
       await pool.query(updateQuery, [
         h,
         w,
@@ -178,6 +184,7 @@ const postController = {
         currentIST,
         download_counter,
         published,
+        track,
         id,
       ]);
       res.status(200).json({ message: "Post data updated successfully" });
@@ -185,7 +192,8 @@ const postController = {
       console.error("Error updating post data:", error);
       res.status(500).json({ error: "Internal server error" });
     }
-  },
+  }
+  ,
   getDataById: async (req, res) => {
     try {
       const { id } = req.params;
