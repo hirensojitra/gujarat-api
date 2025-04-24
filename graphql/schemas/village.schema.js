@@ -45,7 +45,6 @@ const typeDefs = gql`
     name: String
     gu_name: String
     taluka_id: ID
-    is_deleted: Boolean
   }
 
   input PaginationInput {
@@ -82,7 +81,7 @@ const typeDefs = gql`
   type Mutation {
     createVillage(name: String!, gu_name: String!, taluka_id: ID!, is_deleted: Boolean!): Village
     createVillages(villages: [VillageInput]!): [Village]
-    updateVillage(id: ID!, name: String, gu_name: String, taluka_id: ID, is_deleted: Boolean): Village
+    updateVillage(id: ID!, name: String, gu_name: String, taluka_id: ID): Village
     updateVillages(villages: [UpdateVillageInput]!): [Village]
     softDeleteVillage(id: ID!): Village
     softDeleteVillages(ids: [ID]!): [Village]

@@ -31,7 +31,7 @@ const resolvers = {
       const result = await pool.query(query, [district_id, limit, offset]);
       return result.rows;
     },
-    
+
     getTalukasByDistrictId: async (_, { district_id, pagination = {} }) => {
       const {
         page = 1,
@@ -51,7 +51,10 @@ const resolvers = {
       return result.rows;
     },
 
-    getDeletedTalukasByDistrictId: async (_, { district_id, pagination = {} }) => {
+    getDeletedTalukasByDistrictId: async (
+      _,
+      { district_id, pagination = {} }
+    ) => {
       const {
         page = 1,
         limit = 1000,
@@ -90,7 +93,8 @@ const resolvers = {
     },
 
     getTalukaById: async (_, { id }) => {
-      const query = "SELECT * FROM talukas WHERE id = $1 AND is_deleted = FALSE";
+      const query =
+        "SELECT * FROM talukas WHERE id = $1 AND is_deleted = FALSE";
       const result = await pool.query(query, [id]);
       return result.rows[0] || null;
     },
@@ -116,7 +120,10 @@ const resolvers = {
         deletedTalukas: parseInt(rows[0].deletedTalukas, 10),
       };
     },
-    getTalukaStatsByDistrict: async (_, { district_id, activePagination = {}, deletedPagination = {} }) => {
+    getTalukaStatsByDistrict: async (
+      _,
+      { district_id, activePagination = {}, deletedPagination = {} }
+    ) => {
       let selectedId = district_id;
 
       // 1. Fallback to first district if none selected
@@ -128,51 +135,71 @@ const resolvers = {
       }
 
       // 2. Batch query execution
-      const [districtsResult, countsResult, activeTalukasResult, deletedTalukasResult] = await Promise.all([
-        pool.query(`SELECT id, name, gu_name, is_deleted FROM districts WHERE is_deleted = FALSE ORDER BY name ASC`),
+      const [
+        districtsResult,
+        countsResult,
+        activeTalukasResult,
+        deletedTalukasResult,
+      ] = await Promise.all([
+        pool.query(
+          `SELECT id, name, gu_name, is_deleted FROM districts WHERE is_deleted = FALSE ORDER BY name ASC`
+        ),
 
-        pool.query(`
+        pool.query(
+          `
           SELECT
             COUNT(*) AS total,
             COUNT(*) FILTER (WHERE is_deleted = FALSE) AS active,
             COUNT(*) FILTER (WHERE is_deleted = TRUE) AS deleted
           FROM talukas WHERE district_id = $1
-        `, [selectedId]),
+        `,
+          [selectedId]
+        ),
 
-        pool.query(`
+        pool.query(
+          `
           SELECT t.id, t.name, t.gu_name, d.name AS district_name, d.gu_name AS district_gu_name
           FROM talukas t
           JOIN districts d ON d.id = t.district_id
           WHERE t.district_id = $1 AND t.is_deleted = FALSE
-          ORDER BY ${activePagination.sortBy || 't.name'} ${activePagination.sortOrder || 'ASC'}
+          ORDER BY ${activePagination.sortBy || "t.name"} ${
+            activePagination.sortOrder || "ASC"
+          }
           LIMIT $2 OFFSET $3
-        `, [
-          selectedId,
-          activePagination.limit || 10,
-          ((activePagination.page || 1) - 1) * (activePagination.limit || 10)
-        ]),
+        `,
+          [
+            selectedId,
+            activePagination.limit || 10,
+            ((activePagination.page || 1) - 1) * (activePagination.limit || 10),
+          ]
+        ),
 
-        pool.query(`
+        pool.query(
+          `
           SELECT t.id, t.name, t.gu_name, d.name AS district_name, d.gu_name AS district_gu_name
           FROM talukas t
           JOIN districts d ON d.id = t.district_id
           WHERE t.district_id = $1 AND t.is_deleted = TRUE
-          ORDER BY ${deletedPagination.sortBy || 't.name'} ${deletedPagination.sortOrder || 'ASC'}
+          ORDER BY ${deletedPagination.sortBy || "t.name"} ${
+            deletedPagination.sortOrder || "ASC"
+          }
           LIMIT $2 OFFSET $3
-        `, [
-          selectedId,
-          deletedPagination.limit || 10,
-          ((deletedPagination.page || 1) - 1) * (deletedPagination.limit || 10)
-        ]),
+        `,
+          [
+            selectedId,
+            deletedPagination.limit || 10,
+            ((deletedPagination.page || 1) - 1) *
+              (deletedPagination.limit || 10),
+          ]
+        ),
       ]);
 
       const shapeTalukas = (rows) =>
         rows.map((t) => ({
           id: t?.id,
           name: t?.name,
-          gu_name: t?.gu_name
+          gu_name: t?.gu_name,
         }));
-      
 
       const countRow = countsResult.rows[0];
 
@@ -185,7 +212,7 @@ const resolvers = {
         totalActiveTalukasByDistrictId: parseInt(countRow.active, 10),
         totalDeletedTalukasByDistrictId: parseInt(countRow.deleted, 10),
       };
-    }    
+    },
   },
   TalukaWithDistrict: {
     district: async (parent) => {
@@ -203,7 +230,12 @@ const resolvers = {
         VALUES ($1, $2, $3, $4)
         RETURNING id, name, gu_name, district_id, is_deleted;
       `;
-      const result = await pool.query(sql, [name, gu_name, district_id, is_deleted ? 1 : 0]);
+      const result = await pool.query(sql, [
+        name,
+        gu_name,
+        district_id,
+        is_deleted ? 1 : 0,
+      ]);
       return result.rows[0];
     },
 
@@ -215,7 +247,12 @@ const resolvers = {
             VALUES ($1, $2, $3, $4)
             RETURNING id, name, gu_name, district_id, is_deleted;
           `,
-          [district.name, district.gu_name, district.district_id, district.is_deleted ? 1 : 0]
+          [
+            district.name,
+            district.gu_name,
+            district.district_id,
+            district.is_deleted ? 1 : 0,
+          ]
         );
       });
 
@@ -223,7 +260,7 @@ const resolvers = {
       return results.map((result) => result.rows[0]);
     },
 
-    updateTaluka: async (_, { id, name, gu_name, district_id, is_deleted }) => {
+    updateTaluka: async (_, { id, name, gu_name, district_id }) => {
       let updateFields = [];
       let values = [];
 
@@ -242,11 +279,6 @@ const resolvers = {
         values.push(district_id);
       }
 
-      if (is_deleted !== undefined) {
-        updateFields.push(`is_deleted = $${updateFields.length + 1}`);
-        values.push(is_deleted ? 1 : 0);
-      }
-
       values.push(id);
 
       const query = `
@@ -259,49 +291,38 @@ const resolvers = {
       return result.rows[0];
     },
 
-    updateTalukas: async (_, { districts }) => {
-      const updateQueries = districts.map((district) => {
-        const { id, name, gu_name, district_id, is_deleted } = district;
-        let updateFields = [];
-        let values = [];
+    updateTalukas: async (_, { talukas }) => {
+      const updates = talukas.map(({ id, ...data }) => {
+        // Filter out null/undefined fields
+        const entries = Object.entries(data).filter(
+          ([_, v]) => v !== null && v !== undefined
+        );
 
-        if (name) {
-          updateFields.push(`name = $${updateFields.length + 1}`);
-          values.push(name);
-        }
+        if (entries.length === 0) return null; // Skip if nothing to update
 
-        if (gu_name) {
-          updateFields.push(`gu_name = $${updateFields.length + 1}`);
-          values.push(gu_name);
-        }
-
-        if (district_id) {
-          updateFields.push(`district_id = $${updateFields.length + 1}`);
-          values.push(district_id);
-        }
-
-        if (is_deleted !== undefined) {
-          updateFields.push(`is_deleted = $${updateFields.length + 1}`);
-          values.push(is_deleted ? 1 : 0);
-        }
-
-        values.push(id);
+        const setClause = entries
+          .map(([key], index) => `${key} = $${index + 1}`)
+          .join(", ");
+        const values = entries.map(([_, value]) => value);
+        values.push(id); // Final value for WHERE id = $x
 
         const query = `
           UPDATE talukas
-          SET ${updateFields.join(", ")}
+          SET ${setClause}
           WHERE id = $${values.length} AND is_deleted = FALSE
           RETURNING *;
         `;
+
         return pool.query(query, values);
       });
 
-      const results = await Promise.all(updateQueries);
-      return results.map((result) => result.rows[0]);
+      const results = await Promise.all(updates.filter(Boolean));
+      return results.map((r) => r.rows[0]);
     },
 
     softDeleteTaluka: async (_, { id }) => {
-      const sql = "UPDATE talukas SET is_deleted = TRUE WHERE id = $1 RETURNING *";
+      const sql =
+        "UPDATE talukas SET is_deleted = TRUE WHERE id = $1 RETURNING *";
       const result = await pool.query(sql, [id]);
       return result.rows[0];
     },
@@ -319,7 +340,8 @@ const resolvers = {
     },
 
     restoreTaluka: async (_, { id }) => {
-      const sql = "UPDATE talukas SET is_deleted = FALSE WHERE id = $1 RETURNING *";
+      const sql =
+        "UPDATE talukas SET is_deleted = FALSE WHERE id = $1 RETURNING *";
       const result = await pool.query(sql, [id]);
       return result.rows[0];
     },
@@ -344,13 +366,15 @@ const resolvers = {
 
     hardDeleteTalukas: async (_, { ids }) => {
       const deleteQueries = ids.map((id) => {
-        return pool.query("DELETE FROM talukas WHERE id = $1 RETURNING *", [id]);
+        return pool.query("DELETE FROM talukas WHERE id = $1 RETURNING *", [
+          id,
+        ]);
       });
 
       const results = await Promise.all(deleteQueries);
       return results.every((result) => result.rowCount > 0);
     },
-  }
+  },
 };
 
 module.exports = { resolvers };

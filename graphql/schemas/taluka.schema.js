@@ -42,7 +42,6 @@ const typeDefs = gql`
     name: String
     gu_name: String
     district_id: ID
-    is_deleted: Boolean
   }
 
   input PaginationInput {
@@ -87,15 +86,14 @@ const typeDefs = gql`
       district_id: ID!
       is_deleted: Boolean!
     ): Taluka
-    createTalukas(districts: [TalukaInput]!): [Taluka]
+    createTalukas(talukas: [TalukaInput]!): [Taluka]
     updateTaluka(
       id: ID!
       name: String
       gu_name: String
       district_id: ID
-      is_deleted: Boolean
     ): Taluka
-    updateTalukas(districts: [UpdateTalukaInput]!): [Taluka]
+    updateTalukas(talukas: [UpdateTalukaInput]!): [Taluka]
     softDeleteTaluka(id: ID!): Taluka
     softDeleteTalukas(ids: [ID]!): [Taluka]
     restoreTaluka(id: ID!): Taluka
