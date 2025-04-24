@@ -37,7 +37,6 @@ const typeDefs = gql`
     name: String!
     gu_name: String!
     taluka_id: ID!
-    is_deleted: Boolean!
   }
 
   input UpdateVillageInput {
@@ -79,7 +78,7 @@ const typeDefs = gql`
   }
 
   type Mutation {
-    createVillage(name: String!, gu_name: String!, taluka_id: ID!, is_deleted: Boolean!): Village
+    createVillage(name: String!, gu_name: String!, taluka_id: ID!): Village
     createVillages(villages: [VillageInput]!): [Village]
     updateVillage(id: ID!, name: String, gu_name: String, taluka_id: ID): Village
     updateVillages(villages: [UpdateVillageInput]!): [Village]

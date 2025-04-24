@@ -34,7 +34,6 @@ const typeDefs = gql`
     name: String!
     gu_name: String!
     district_id: ID!
-    is_deleted: Boolean!
   }
 
   input UpdateTalukaInput {
@@ -84,7 +83,6 @@ const typeDefs = gql`
       name: String!
       gu_name: String!
       district_id: ID!
-      is_deleted: Boolean!
     ): Taluka
     createTalukas(talukas: [TalukaInput]!): [Taluka]
     updateTaluka(

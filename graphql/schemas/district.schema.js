@@ -12,7 +12,6 @@ const typeDefs = gql`
   input DistrictInput {
     name: String!
     gu_name: String!
-    is_deleted: Boolean
   }
 
   input UpdateDistrictInput {
@@ -44,7 +43,7 @@ const typeDefs = gql`
   }
 
   type Mutation {
-    createDistrict(name: String!, gu_name: String!, is_deleted: Boolean): District
+    createDistrict(name: String!, gu_name: String!): District
     createDistricts(districts: [DistrictInput]!): [District]
     updateDistrict(id: ID!, name: String, gu_name: String, is_deleted: Boolean): District
     updateDistricts(districts: [UpdateDistrictInput]!): [District]

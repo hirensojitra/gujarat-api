@@ -80,10 +80,10 @@ const resolvers = {
   },
 
   Mutation: {
-    createDistrict: async (_, { name, gu_name, is_deleted }) => {
+    createDistrict: async (_, { name, gu_name }) => {
       const sql = `
         INSERT INTO districts (name, gu_name, is_deleted)
-        VALUES ($1, $2, $3)
+        VALUES ($1, $2, false)
         RETURNING id, name, gu_name, is_deleted
       `;
       const result = await pool.query(sql, [name, gu_name, is_deleted ? 1 : 0]);
@@ -91,12 +91,12 @@ const resolvers = {
     },
 
     createDistricts: async (_, { districts }) => {
-      const insertQueries = districts.map(({ name, gu_name, is_deleted }) => {
+      const insertQueries = districts.map(({ name, gu_name }) => {
         return pool.query(
           `INSERT INTO districts (name, gu_name, is_deleted)
            VALUES ($1, $2, $3)
            RETURNING id, name, gu_name, is_deleted`,
-          [name, gu_name, is_deleted ? 1 : 0]
+          [name, gu_name, false]
         );
       });
       const results = await Promise.all(insertQueries);

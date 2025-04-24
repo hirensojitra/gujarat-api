@@ -195,7 +195,8 @@ const resolvers = {
   },
 
   Mutation: {
-    createVillage: async (_, { name, gu_name, taluka_id, is_deleted }) => {
+    createVillage: async (_, { name, gu_name, taluka_id }) => {
+      const is_deleted = false;
       const result = await pool.query(
         `
         INSERT INTO villages (name, gu_name, taluka_id, is_deleted)
@@ -215,7 +216,7 @@ const resolvers = {
           VALUES ($1, $2, $3, $4)
           RETURNING *;
         `,
-          [v.name, v.gu_name, v.taluka_id, v.is_deleted]
+          [v.name, v.gu_name, v.taluka_id, false]
         )
       );
       const results = await Promise.all(inserts);

@@ -224,7 +224,7 @@ const resolvers = {
     },
   },
   Mutation: {
-    createTaluka: async (_, { name, gu_name, district_id, is_deleted }) => {
+    createTaluka: async (_, { name, gu_name, district_id }) => {
       const sql = `
         INSERT INTO talukas (name, gu_name, district_id, is_deleted)
         VALUES ($1, $2, $3, $4)
@@ -234,7 +234,7 @@ const resolvers = {
         name,
         gu_name,
         district_id,
-        is_deleted ? 1 : 0,
+        false,
       ]);
       return result.rows[0];
     },
@@ -251,7 +251,7 @@ const resolvers = {
             district.name,
             district.gu_name,
             district.district_id,
-            district.is_deleted ? 1 : 0,
+            false,
           ]
         );
       });
