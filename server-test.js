@@ -16,9 +16,10 @@ const {
   resolvers: talukaResolvers,
 } = require("./graphql/resolvers/taluka.resolvers");
 const { typeDefs: villageTypeDefs } = require("./graphql/schemas/village.schema");
-const {
-  resolvers: villageResolvers,
-} = require("./graphql/resolvers/village.resolvers");
+const { resolvers: villageResolvers} = require("./graphql/resolvers/village.resolvers");
+
+const { typeDefs: user_infoTypeDefs } = require("./graphql/schemas/user_info.schema");
+const { resolvers: user_infoResolvers} = require("./graphql/resolvers/user_info.resolvers");
 // 3️⃣ Create Express app
 const app = express();
 app.use(cors());
@@ -33,15 +34,15 @@ const rootTypeDefs = gql`
 // 6️⃣ Set up ApolloServer for GraphQL
 async function startGraphQL() {
   const server = new ApolloServer({
-    typeDefs: [rootTypeDefs, districtTypeDefs, talukaTypeDefs, villageTypeDefs],
-    resolvers: [districtResolvers, talukaResolvers, villageResolvers],
+    typeDefs: [rootTypeDefs, districtTypeDefs, talukaTypeDefs, villageTypeDefs, user_infoTypeDefs],
+    resolvers: [districtResolvers, talukaResolvers, villageResolvers, user_infoResolvers],
     context: ({ req }) => {
       return { user: req.headers.authorization || null };
     },
   });
 
   await server.start();
-  server.applyMiddleware({ app, path: "/hiren" });
+  server.applyMiddleware({ app, path: "/graphql" });
 }
 
 startGraphQL()
