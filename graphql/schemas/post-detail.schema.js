@@ -1,31 +1,20 @@
-// post-detail.schema.js
-
-const { gql } = require("apollo-server-express");
+const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
   scalar JSON
   scalar Upload
 
-  #
-  # Pagination info returned alongside lists of posts
-  #
   type Pagination {
     currentPage: Int!
     totalPages: Int!
     totalPosts: Int!
   }
 
-  #
-  # The top‐level list response for posts
-  #
   type PostListResponse {
     posts: [PostDetails!]!
     pagination: Pagination!
   }
 
-  #
-  # Primitive shapes for vector elements
-  #
   enum StrokeAlignment {
     inside
     outside
@@ -91,9 +80,6 @@ const typeDefs = gql`
     rotate: Float!
   }
 
-  #
-  # Rich‐text element types
-  #
   enum TextElementType {
     text
     select
@@ -163,9 +149,6 @@ const typeDefs = gql`
     originY: Float!
   }
 
-  #
-  # SVG wrapper for images
-  #
   type SvgProperties {
     fill: String!
     stroke: String!
@@ -185,9 +168,6 @@ const typeDefs = gql`
     rotate: Float!
   }
 
-  #
-  # One “data” entry inside each post’s data array
-  #
   type DataElement {
     title: String!
     editable: Boolean!
@@ -200,9 +180,6 @@ const typeDefs = gql`
     image: ImageElement
   }
 
-  #
-  # Core post type
-  #
   type PostDetails {
     id: String!
     deleted: Boolean!
@@ -213,7 +190,7 @@ const typeDefs = gql`
     title: String!
     backgroundurl: String!
     download_counter: Int!
-    data: [DataElement!]!
+    data: JSON!
     msg: String
     apiData: JSON
     image: String
@@ -224,9 +201,6 @@ const typeDefs = gql`
     deleted_at: String
   }
 
-  #
-  # Input types for creating/updating
-  #
   input RectPropertiesInput {
     x: Float!
     y: Float!
@@ -382,7 +356,7 @@ const typeDefs = gql`
     info: String!
     info_show: Boolean!
     backgroundurl: String!
-    data: [DataElementInput!]!
+    data: JSON!
     download_counter: Int!
     published: Boolean!
     track: Boolean!
@@ -395,15 +369,12 @@ const typeDefs = gql`
     info: String
     info_show: Boolean
     backgroundurl: String
-    data: [DataElementInput!]
+    data: JSON
     download_counter: Int
     published: Boolean
     track: Boolean
   }
 
-  #
-  # Queries & Mutations
-  #
   type Query {
     getAllPosts(
       page: Int!

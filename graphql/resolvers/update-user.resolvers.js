@@ -1,10 +1,11 @@
-// update-user.resolvers.js
 const jwt = require("jsonwebtoken");
+const fs = require("fs");
+const path = require("path");
 const pool = require("../../database");
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const uploadDir = path.join(__dirname, "../../uploads/profile");
 
-// Reusable SELECT to fetch a user’s public info
 const GET_USER_BY_ID_SQL = `
 SELECT
   ui.id              AS user_id,
@@ -29,12 +30,14 @@ LEFT JOIN languages      lang ON ui.language_id = lang.id
 WHERE ui.id = $1
 LIMIT 1;
 `;
+
 const formatLocalDate = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
+
 function normaliseUser(r) {
   const unk = (v) => !v || v.toLowerCase() === "unknown";
   return {
@@ -60,21 +63,19 @@ function normaliseUser(r) {
 
 const resolvers = {
   Mutation: {
-    async updateUserProfile(_, { input }, { req }) {
-      // 1️⃣ Authenticate
+    async updateUserProfile(_, { input, image }, { req }) {
       const auth = req.headers.authorization || "";
-      if (!auth.startsWith("Bearer ")) {
-        throw new Error("Not authenticated");
-      }
+      if (!auth.startsWith("Bearer ")) throw new Error("Not authenticated");
+
       let payload;
       try {
         payload = jwt.verify(auth.slice(7), JWT_SECRET);
       } catch {
         throw new Error("Invalid or expired token");
       }
-      const userId = payload.user_id;
 
-      // 2️⃣ Build dynamic UPDATE
+      const userId = payload.userId || payload.user_id;
+
       const allowed = new Set([
         "firstname",
         "middlename",
@@ -91,11 +92,11 @@ const resolvers = {
       let idx = 1;
       let numberUpdated = false;
 
+      // Field updates
       for (const [key, val] of Object.entries(input)) {
         if (!allowed.has(key)) continue;
         if (val === undefined || val === null || val === "") continue;
 
-        // handle enums/lowercase for Postgres
         const dbVal =
           key === "gender" || key === "marital_status"
             ? String(val).toLowerCase()
@@ -103,38 +104,66 @@ const resolvers = {
 
         sets.push(`${key} = $${idx}`);
         vals.push(dbVal);
-        idx++;
 
-        if (key === "number") {
-          numberUpdated = true;
-        }
+        if (key === "number") numberUpdated = true;
+        idx++;
       }
 
-      // if mobile was updated, reset its verification flag
       if (numberUpdated) {
         sets.push(`number_verified = $${idx}`);
         vals.push(false);
         idx++;
       }
 
-      if (sets.length === 0) {
-        throw new Error("No valid fields provided for update");
+      if (image) {
+        const resolvedImage = await image;
+
+        const ext = path.extname(resolvedImage.filename || "");
+        const newImageName = `${userId}-${Date.now()}${ext}`;
+        const newImagePath = path.join(uploadDir, path.basename(newImageName));
+
+        // Ensure directory exists
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // Remove old image(s) with same userId prefix
+        const files = fs.readdirSync(uploadDir);
+        for (const file of files) {
+          if (file.startsWith(userId)) {
+            try {
+              fs.unlinkSync(path.join(uploadDir, file));
+            } catch (err) {
+              console.error(`Failed to delete old image ${file}:`, err.message);
+            }
+          }
+        }
+
+        // Save new image
+        await new Promise((resolve, reject) => {
+          const writeStream = fs.createWriteStream(newImagePath);
+          resolvedImage.stream.pipe(writeStream);
+          resolvedImage.stream.on("finish", resolve);
+          resolvedImage.stream.on("error", reject);
+        });
+
+        // Save filename in DB
+        sets.push(`image = $${idx}`);
+        vals.push(newImageName);
+        idx++;
       }
 
-      // WHERE clause
+      if (!sets.length) throw new Error("No valid fields provided for update");
+
       vals.push(userId);
-      const updateSQL = `
-        UPDATE users_info
-        SET ${sets.join(", ")}
-        WHERE id = $${idx}
-      `;
+      const updateSQL = `UPDATE users_info SET ${sets.join(
+        ", "
+      )} WHERE id = $${idx}`;
       await pool.query(updateSQL, vals);
 
-      // 3️⃣ Fetch and return
       const { rows, rowCount } = await pool.query(GET_USER_BY_ID_SQL, [userId]);
-      if (!rowCount) {
-        throw new Error("Failed to fetch updated user");
-      }
+      if (!rowCount) throw new Error("Failed to fetch updated user");
+
       return normaliseUser(rows[0]);
     },
   },

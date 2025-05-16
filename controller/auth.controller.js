@@ -13,6 +13,7 @@ const moment = require("moment");
 const client = new OAuth2Client(
   "650577899089-eq5q93v869b5qvi6vllcq81o8v06ubsm.apps.googleusercontent.com"
 );
+const profileDir = path.join(__dirname, "../uploads/profile");
 const generateUniqueId = async () => {
   // Generate a random 16-character alphanumeric string in lowercase
   const newId = crypto.randomBytes(8).toString("hex"); // 16 chars (8 bytes)
@@ -428,17 +429,17 @@ const authController = {
 
       if (district_id !== undefined) {
         updateFields.push("district_id = $" + (params.length + 1));
-        params.push(district_id?parseInt(district_id, 10):district_id);
+        params.push(district_id ? parseInt(district_id, 10) : district_id);
       }
 
       if (taluka_id !== undefined) {
         updateFields.push("taluka_id = $" + (params.length + 1));
-        params.push(taluka_id?parseInt(taluka_id, 10):taluka_id);
+        params.push(taluka_id ? parseInt(taluka_id, 10) : taluka_id);
       }
 
       if (village_id !== undefined) {
         updateFields.push("village_id = $" + (params.length + 1));
-        params.push(village_id?parseInt(village_id, 10):village_id);
+        params.push(village_id ? parseInt(village_id, 10) : village_id);
       }
 
       // Ensure only "master" and "admin" can change roles
@@ -630,6 +631,93 @@ const authController = {
     } catch (error) {
       console.error("Error fetching profile image:", error);
       return res.status(500).json({ error: "Error fetching profile image" });
+    }
+  },
+  getImage: async (req, res) => {
+    const { id } = req.params;
+    const { quality, format, thumb } = req.query;
+
+    try {
+      // Check if the user exists
+      const result = await pool.query(
+        "SELECT id FROM users_info WHERE id = $1",
+        [id]
+      );
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Look for any image file that starts with the userId
+      const files = fs.existsSync(profileDir) ? fs.readdirSync(profileDir) : [];
+      const file = files.find((f) => f.startsWith(id));
+
+      if (file) {
+        const imagePath = path.join(profileDir, file);
+        let image = sharp(imagePath);
+
+        // Format conversion
+        let contentType = "image/jpeg";
+        if (format) {
+          switch (format.toLowerCase()) {
+            case "png":
+              image = image.png();
+              contentType = "image/png";
+              break;
+            case "webp":
+              image = image.webp();
+              contentType = "image/webp";
+              break;
+            case "gif":
+              image = image.gif();
+              contentType = "image/gif";
+              break;
+            case "bmp":
+              image = image.bmp();
+              contentType = "image/bmp";
+              break;
+            case "tiff":
+            case "tif":
+              image = image.tiff();
+              contentType = "image/tiff";
+              break;
+            default:
+              image = image.jpeg();
+          }
+        }
+
+        // Resize thumbnail
+        if (thumb) {
+          image = image.resize(100);
+        }
+
+        // Quality control (for jpeg)
+        if (quality) {
+          const q = parseInt(quality);
+          if (!isNaN(q)) image = image.jpeg({ quality: q });
+        }
+
+        res.set("Content-Type", contentType);
+        return image.pipe(res);
+      }
+
+      // Fallback: Generate placeholder image with "User"
+      const canvas = createCanvas(200, 200);
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#cccccc"; // background
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.fillStyle = "#000000"; // text
+      ctx.font = "bold 50px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("User", 100, 100);
+
+      const buffer = canvas.toBuffer("image/png");
+      res.set("Content-Type", "image/png");
+      return res.send(buffer);
+    } catch (error) {
+      console.error("Error in getImage:", error);
+      return res.status(500).json({ error: "Failed to load profile image" });
     }
   },
 

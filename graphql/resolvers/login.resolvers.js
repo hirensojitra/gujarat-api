@@ -137,6 +137,11 @@ const resolvers = {
         user: normaliseUser(u),
       };
     },
+    async hasRole(_, { user_id, role_code }) {
+      const query = `SELECT 1 FROM users_info u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 AND r.code = $2 LIMIT 1`;
+      const { rowCount } = await pool.query(query, [user_id, role_code]);
+      return rowCount > 0;
+    },
   },
 };
 

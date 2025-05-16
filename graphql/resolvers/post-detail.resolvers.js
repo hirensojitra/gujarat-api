@@ -1,12 +1,43 @@
-// post-detail.resolvers.js
-
-// const { GraphQLUpload } = require('graphql-upload/GraphQLUpload.mjs');
-const jwt               = require('jsonwebtoken');
-const fs                = require('fs');
-const path              = require('path');
-const pool              = require('../../database');
+const { GraphQLUpload } = require('@apollographql/apollo-upload-server');
+const { GraphQLScalarType, Kind } = require('graphql');
+const jwt             = require('jsonwebtoken');
+const fs              = require('fs');
+const path            = require('path');
+const pool            = require('../../database');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// Custom JSON scalar for JSONB support
+const JSONScalar = new GraphQLScalarType({
+  name: 'JSON',
+  description: 'Arbitrary JSON scalar for JSONB',
+  parseValue: value => value,
+  serialize: value => value,
+  parseLiteral(ast) {
+    function parseLiteral(innerAst) {
+      switch (innerAst.kind) {
+        case Kind.STRING:
+        case Kind.BOOLEAN:
+          return innerAst.value;
+        case Kind.INT:
+        case Kind.FLOAT:
+          return parseFloat(innerAst.value);
+        case Kind.OBJECT: {
+          const value = {};
+          innerAst.fields.forEach(field => {
+            value[field.name.value] = parseLiteral(field.value);
+          });
+          return value;
+        }
+        case Kind.LIST:
+          return innerAst.values.map(parseLiteral);
+        default:
+          return null;
+      }
+    }
+    return parseLiteral(ast);
+  }
+});
 
 /** Helper: ensure the request is from an ADMIN user */
 async function ensureAdmin(req) {
@@ -20,7 +51,6 @@ async function ensureAdmin(req) {
   } catch (err) {
     throw new Error('Invalid or expired token');
   }
-  // look up the user’s role code
   const { rows } = await pool.query(
     `SELECT r.code
        FROM users_info ui
@@ -52,9 +82,10 @@ function buildFilters({ search, published, info_show }) {
 }
 
 const resolvers = {
+  JSON:   JSONScalar,
+  Upload: GraphQLUpload,
 
   Query: {
-    // match controller.getAllData :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
     async getAllPosts(_, {
       page = 1, limit = 12, search = '',
       sortBy = 'created_at', order = 'desc',
@@ -66,7 +97,6 @@ const resolvers = {
       const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
 
       const { where, params, nextIndex } = buildFilters({ search, published, info_show });
-      // fetch rows
       const listSql = `
         SELECT * FROM post_details
         WHERE ${where}
@@ -76,7 +106,6 @@ const resolvers = {
       const listParams = [...params, limit, offset];
       const { rows: posts } = await pool.query(listSql, listParams);
 
-      // total count
       const countSql = `
         SELECT COUNT(*) AS count FROM post_details
         WHERE ${where};
@@ -94,7 +123,6 @@ const resolvers = {
       };
     },
 
-    // controller.getDataById :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
     async getPostById(_, { id }) {
       const { rows } = await pool.query(
         `SELECT * FROM post_details WHERE id = $1`, [id]
@@ -102,7 +130,6 @@ const resolvers = {
       return rows[0] || null;
     },
 
-    // controller.getAllSoftDeletedData :contentReference[oaicite:4]{index=4}:contentReference[oaicite:5]{index=5}
     async getAllSoftDeletedPosts(_, {
       page = 1, limit = 12, search = '',
       sortBy = 'deleted_at', order = 'desc'
@@ -140,7 +167,6 @@ const resolvers = {
       };
     },
 
-    // controller.getPostLength :contentReference[oaicite:6]{index=6}:contentReference[oaicite:7]{index=7}
     async getTotalPostLength() {
       const { rows } = await pool.query(
         `SELECT COUNT(*) AS count FROM post_details WHERE deleted = false`
@@ -148,7 +174,6 @@ const resolvers = {
       return parseInt(rows[0].count, 10);
     },
 
-    // controller.getDeletedPostLength :contentReference[oaicite:8]{index=8}:contentReference[oaicite:9]{index=9}
     async getTotalDeletedPostLength() {
       const { rows } = await pool.query(
         `SELECT COUNT(*) AS count FROM post_details WHERE deleted = true`
@@ -156,7 +181,6 @@ const resolvers = {
       return parseInt(rows[0].count, 10);
     },
 
-    // controller.getDownloadCounter :contentReference[oaicite:10]{index=10}:contentReference[oaicite:11]{index=11}
     async getDownloadCounter(_, { id }) {
       const { rows } = await pool.query(
         `SELECT download_counter FROM post_details WHERE id = $1`, [id]
@@ -164,7 +188,6 @@ const resolvers = {
       return rows[0]?.download_counter ?? 0;
     },
 
-    // controller.updateDownloadCounter :contentReference[oaicite:12]{index=12}:contentReference[oaicite:13]{index=13}
     async updateDownloadCounter(_, { id }) {
       const now = new Date().toISOString();
       const { rows } = await pool.query(
@@ -181,17 +204,15 @@ const resolvers = {
   },
 
   Mutation: {
-    // controller.addPost :contentReference[oaicite:14]{index=14}:contentReference[oaicite:15]{index=15}
     async addPost(_, { input }, { req }) {
       await ensureAdmin(req);
 
       const {
         h, w, title, info, info_show,
-        backgroundurl, data,
-        download_counter, published, track
+        backgroundurl, data, download_counter,
+        published, track
       } = input;
 
-      const jsonData = JSON.stringify(data);
       const now      = new Date().toISOString();
       const id       = Math.random().toString(36).substr(2,9);
 
@@ -208,13 +229,12 @@ const resolvers = {
       `;
       const { rows } = await pool.query(sql, [
         id, h, w, title, info, info_show,
-        backgroundurl, jsonData, download_counter,
+        backgroundurl, data, download_counter,
         now, published, track
       ]);
       return rows[0];
     },
 
-    // dynamic update: only provided fields will be SET
     async updatePost(_, { input }, { req }) {
       await ensureAdmin(req);
 
@@ -225,13 +245,11 @@ const resolvers = {
       for (const [k,v] of Object.entries(fields)) {
         if (v === null || v === undefined) continue;
         sets.push(`${k} = $${idx++}`);
-        // preserve case for JSON/text, lower-case enums if needed...
         vals.push(v);
       }
       if (!sets.length) {
         throw new Error('No fields provided for update');
       }
-      // updated_at timestamp
       sets.push(`updated_at = $${idx++}`);
       vals.push(new Date().toISOString());
 
@@ -246,13 +264,12 @@ const resolvers = {
       return rows[0];
     },
 
-    // controller.softDeleteData :contentReference[oaicite:16]{index=16}:contentReference[oaicite:17]{index=17}
     async softDeletePost(_, { id }, { req }) {
       await ensureAdmin(req);
       const now = new Date().toISOString();
       await pool.query(
         `UPDATE post_details
-            SET deleted = true,
+            SET.deleted = true,
                 published = false,
                 deleted_at = $1
           WHERE id = $2`,
@@ -261,7 +278,6 @@ const resolvers = {
       return true;
     },
 
-    // controller.recoverData :contentReference[oaicite:18]{index=18}:contentReference[oaicite:19]{index=19}
     async recoverPost(_, { id }, { req }) {
       await ensureAdmin(req);
       await pool.query(
@@ -274,7 +290,6 @@ const resolvers = {
       return true;
     },
 
-    // controller.hardDeleteData :contentReference[oaicite:20]{index=20}:contentReference[oaicite:21]{index=21}
     async hardDeletePost(_, { id }, { req }) {
       await ensureAdmin(req);
       await pool.query(`DELETE FROM post_details WHERE id = $1`, [id]);
@@ -294,7 +309,6 @@ const resolvers = {
           .on('finish', res)
           .on('error', rej);
       });
-      // return the public URL path
       return `/thumb-images/${postId}${ext}`;
     }
   }

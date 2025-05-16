@@ -57,6 +57,7 @@ const typeDefs = gql`
 
   extend type Query {
     validateToken(token: String): AuthPayload
+    hasRole(user_id: String!, role_code: String!): Boolean!
   }
 `;
 

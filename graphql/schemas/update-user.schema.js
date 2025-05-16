@@ -2,6 +2,7 @@
 const { gql } = require("apollo-server-express");
 
 const typeDefs = gql`
+  scalar Upload
   input UpdateUserInput {
     firstname: String
     middlename: String
@@ -14,7 +15,7 @@ const typeDefs = gql`
   }
 
   extend type Mutation {
-    updateUserProfile(input: UpdateUserInput!): UserPublicInfo!
+    updateUserProfile(input: UpdateUserInput!, image: Upload): UserPublicInfo
   }
 `;
 

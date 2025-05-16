@@ -14,6 +14,7 @@ router.put("/updateUser/:userid", authenticateToken, uploadLimits.single('image'
 // Route for user login
 router.post("/login", authController.login);
 router.get('/profile-image/:username', authController.getProfileImage);
+router.get('/avatar/:id', authController.getImage);
 router.get('/verify-email', authController.verifyEmail);
 router.post('/resend-verification', authController.resendVerification);
 router.post('/google', authController.googleAuth);
