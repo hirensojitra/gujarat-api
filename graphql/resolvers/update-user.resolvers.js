@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const path = require("path");
+const sharp = require("sharp");
 const pool = require("../../database");
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -92,7 +93,6 @@ const resolvers = {
       let idx = 1;
       let numberUpdated = false;
 
-      // Field updates
       for (const [key, val] of Object.entries(input)) {
         if (!allowed.has(key)) continue;
         if (val === undefined || val === null || val === "") continue;
@@ -118,39 +118,82 @@ const resolvers = {
       if (image) {
         const resolvedImage = await image;
 
-        const ext = path.extname(resolvedImage.filename || "");
-        const newImageName = `${userId}-${Date.now()}${ext}`;
-        const newImagePath = path.join(uploadDir, path.basename(newImageName));
+        const allowedImageTypes = ["image/jpeg", "image/png", "image/jpg"];
+        const allowedExtensions = [".jpg", ".jpeg", ".png"];
 
-        // Ensure directory exists
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
+        const filename = resolvedImage?.filename?.toLowerCase() || "";
+        const mimetype = resolvedImage?.mimetype?.toLowerCase() || "";
+        const ext = path.extname(filename);
+
+        const isDeleteRequest =
+          resolvedImage === "delete" ||
+          mimetype === "text/plain" ||
+          filename === "delete.txt";
+
+        const isAllowedImage =
+          allowedImageTypes.includes(mimetype) &&
+          allowedExtensions.includes(ext);
+
+        if (!isDeleteRequest && !isAllowedImage) {
+          throw new Error(
+            "Only image files (jpg, jpeg, png) or delete.txt are allowed."
+          );
         }
 
-        // Remove old image(s) with same userId prefix
-        const files = fs.readdirSync(uploadDir);
-        for (const file of files) {
+        const existingFiles = fs.readdirSync(uploadDir);
+        for (const file of existingFiles) {
           if (file.startsWith(userId)) {
             try {
               fs.unlinkSync(path.join(uploadDir, file));
-            } catch (err) {
-              console.error(`Failed to delete old image ${file}:`, err.message);
-            }
+            } catch {}
           }
         }
 
-        // Save new image
-        await new Promise((resolve, reject) => {
-          const writeStream = fs.createWriteStream(newImagePath);
-          resolvedImage.stream.pipe(writeStream);
-          resolvedImage.stream.on("finish", resolve);
-          resolvedImage.stream.on("error", reject);
-        });
+        if (isDeleteRequest) {
+          sets.push(`image = $${idx}`);
+          vals.push(null);
+          idx++;
+        } else {
+          const newImageName = `${userId}${ext}`;
+          const newImagePath = path.join(
+            uploadDir,
+            path.basename(newImageName)
+          );
 
-        // Save filename in DB
-        sets.push(`image = $${idx}`);
-        vals.push(newImageName);
-        idx++;
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+
+          try {
+            await new Promise((resolve, reject) => {
+              const inputStream = resolvedImage.createReadStream();
+              if (!inputStream || typeof inputStream.pipe !== "function") {
+                return reject(new Error("Invalid file stream"));
+              }
+
+              const writeStream = fs.createWriteStream(newImagePath);
+              inputStream.pipe(writeStream).on("error", reject);
+              writeStream.on("finish", resolve);
+              writeStream.on("error", reject);
+            });
+
+            const buffer = fs.readFileSync(newImagePath);
+
+            try {
+              await sharp(buffer).metadata();
+            } catch {
+              fs.unlinkSync(newImagePath);
+              throw new Error(
+                "Invalid image format. Please upload a valid image."
+              );
+            }
+            sets.push(`image = $${idx}`);
+            vals.push(newImageName);
+            idx++;
+          } catch {
+            throw new Error("Image upload failed");
+          }
+        }
       }
 
       if (!sets.length) throw new Error("No valid fields provided for update");

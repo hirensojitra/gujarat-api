@@ -119,9 +119,7 @@ const imgController = {
     // Controller: Get all folders (with pagination, searching, sorting)
     getFolders: async (req, res) => {
         const { page = 1, limit = 10, search = '', sortBy = 'created_at', order = 'asc' } = req.query;
-
-        const offset = (page - 1) * limit; // Correct the offset calculation
-
+        const offset = (page - 1) * limit;
         try {
             const query = `
             SELECT * FROM folders

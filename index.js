@@ -3,12 +3,75 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { ApolloServer, gql } = require("apollo-server-express");
-const {
-  apolloUploadExpress,
-  GraphQLUpload,
-} = require("@apollographql/apollo-upload-server");
+const { graphqlUploadExpress, GraphQLUpload } = require("graphql-upload");
+const jwt = require("jsonwebtoken");
+const pool = require("./database");
 
-// GraphQL schemas & resolvers
+const app = express();
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// ─── CORS CONFIG ────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  "https://www.postnew.in",
+  "http://192.168.151.203:4500",
+  "https://studio.apollographql.com",
+];
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS policy: Origin ${origin} not allowed`));
+    }
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.use(express.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+app.options("/graphql", cors(corsOptions));
+
+// ─── Handle file uploads via graphql-upload middleware ──────────────────────
+app.use(
+  graphqlUploadExpress({
+    maxFileSize: 10_000_000, // 10 MB
+    maxFiles: 10,
+  })
+);
+const getUserWithRoleById = async (userId) => {
+  const sql = `
+    SELECT ui.id as userid, r.code as role
+    FROM users_info ui
+    JOIN roles r ON ui.role_id = r.id
+    WHERE ui.id = $1
+    LIMIT 1;
+  `;
+  const result = await pool.query(sql, [userId]);
+  return result.rows[0]; // returns { userid, role }
+};
+// ─── REST ENDPOINTS ─────────────────────────────────────────────────────────
+app.use("/api/v1/posts", require("./routes/posts.router"));
+app.use("/api/v1/post-detail", require("./routes/post-detail.router"));
+app.use("/api/v1/auth", require("./routes/auth.router"));
+app.use("/api/v1/district", require("./routes/district.router"));
+app.use("/api/v1/taluka", require("./routes/taluka.router"));
+app.use("/api/v1/village", require("./routes/village.router"));
+app.use("/api/v1/images", require("./routes/images.router"));
+app.use("/api/v1/thumb-images", require("./routes/thumb-images.router"));
+app.use("/api/v1/img", require("./routes/img.router"));
+app.use("/api/v1/user-img", require("./routes/user-img.router"));
+app.use("/api/v1/track", require("./routes/track.router"));
+app.use("/api/v1", require("./routes/token.router"));
+
+// ─── GraphQL root types ─────────────────────────────────────────────────────
+const rootTypeDefs = gql`
+  scalar Upload
+  type Query
+  type Mutation
+`;
+
+// ─── GraphQL Schemas & Resolvers ────────────────────────────────────────────
 const {
   typeDefs: districtTypeDefs,
 } = require("./graphql/schemas/district.schema");
@@ -69,65 +132,10 @@ const {
 const {
   resolvers: postSubCategoriesResolvers,
 } = require("./graphql/resolvers/post-subcategory.resolvers");
-
-// REST routes
-const postsRouter = require("./routes/posts.router");
-const postDetail = require("./routes/post-detail.router");
-const authRouter = require("./routes/auth.router");
-const districtRouter = require("./routes/district.router");
-const talukaRouter = require("./routes/taluka.router");
-const villageRouter = require("./routes/village.router");
-const imagesRouter = require("./routes/images.router");
-const thumbImagesRouter = require("./routes/thumb-images.router");
-const folderRouter = require("./routes/img.router");
-const userImgRouter = require("./routes/user-img.router");
-const tokenRouter = require("./routes/token.router");
-const trackRouter = require("./routes/track.router");
-
-const app = express();
-
-// ─── CORS CONFIG ────────────────────────────────────────────────────────────
-const allowedOrigins = [
-  "https://www.postnew.in",
-  "http://192.168.151.203:4500",
-  "https://studio.apollographql.com",
-];
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS policy: Origin ${origin} not allowed`));
-    }
-  },
-  credentials: true,
-};
-
-app.use(cors(corsOptions));
-app.use(express.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-app.options("/graphql", cors(corsOptions));
-
-// ─── REST ENDPOINTS ─────────────────────────────────────────────────────────
-app.use("/api/v1/posts", postsRouter);
-app.use("/api/v1/post-detail", postDetail);
-app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/district", districtRouter);
-app.use("/api/v1/taluka", talukaRouter);
-app.use("/api/v1/village", villageRouter);
-app.use("/api/v1/images", imagesRouter);
-app.use("/api/v1/thumb-images", thumbImagesRouter);
-app.use("/api/v1/img", folderRouter);
-app.use("/api/v1/user-img", userImgRouter);
-app.use("/api/v1/track", trackRouter);
-app.use("/api/v1", tokenRouter);
-
-// ─── GraphQL root types ─────────────────────────────────────────────────────
-const rootTypeDefs = gql`
-  scalar Upload
-  type Query
-  type Mutation
-`;
+const { typeDefs: imgTypeDefs } = require("./graphql/schemas/img.schema");
+const {
+  resolvers: imgResolvers,
+} = require("./graphql/resolvers/img.resolvers");
 
 // ─── Start Apollo Server and attach to Express ──────────────────────────────
 async function startGraphQL() {
@@ -145,6 +153,7 @@ async function startGraphQL() {
       postDetailTypeDefs,
       postCategoriesTypeDefs,
       postSubCategoriesTypeDefs,
+      imgTypeDefs,
     ],
     resolvers: [
       { Upload: GraphQLUpload },
@@ -159,27 +168,34 @@ async function startGraphQL() {
       postDetailResolvers,
       postCategoriesResolvers,
       postSubCategoriesResolvers,
+      imgResolvers,
     ],
-    context: ({ req, res }) => ({
-      req,
-      res,
-      user: req.headers.authorization || null,
-    }),
+    context: async ({ req, res }) => {
+      const authHeader = req.headers.authorization || "";
+      let token = null;
+
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.replace("Bearer ", "");
+      } else if (authHeader.split(".").length === 3) {
+        token = authHeader;
+      }
+
+      let user = null;
+
+      if (token) {
+        try {
+          const payload = jwt.verify(token, JWT_SECRET);
+          user = await getUserWithRoleById(payload.user_id); // Adds `role`
+        } catch (err) {
+          console.warn("❌ JWT verification failed:", err.message);
+        }
+      }
+
+      return { req, res, user };
+    },
   });
 
   await server.start();
-
-  // handle file uploads via multipart requests
-  app.use(
-    "/graphql",
-    apolloUploadExpress({
-      maxFieldSize: 1_000_000, // 1 MB
-      maxFileSize: 10_000_000, // 10 MB per file
-      maxFiles: 10, // max 10 files
-    })
-  );
-
-  // Disable built-in CORS (we did it above)
   server.applyMiddleware({ app, path: "/graphql", cors: false });
 }
 

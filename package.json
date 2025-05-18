@@ -5,7 +5,6 @@
   },
   "dependencies": {
     "@apollo/server": "^4.12.0",
-    "@apollographql/apollo-upload-server": "^5.0.3",
     "apollo-server-express": "^3.13.0",
     "bcrypt": "^5.1.0",
     "canvas": "^2.11.2",
@@ -18,6 +17,7 @@
     "google-auth-library": "^9.15.1",
     "googleapis": "^105.0.0",
     "graphql": "^16.11.0",
+    "graphql-upload": "^12.0.0",
     "jsonwebtoken": "^9.0.0",
     "moment": "^2.30.1",
     "multer": "^1.4.5-lts.1",

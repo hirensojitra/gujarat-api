@@ -1,4 +1,4 @@
-const { GraphQLUpload } = require('@apollographql/apollo-upload-server');
+const { GraphQLUpload } = require("graphql-upload");
 const { GraphQLScalarType, Kind } = require('graphql');
 const jwt             = require('jsonwebtoken');
 const fs              = require('fs');
