@@ -30,19 +30,14 @@ function generateAlphanumericId(length = 5) {
 // Recursively generate and verify a unique alphanumeric ID for both folders and images
 async function generateUniqueId(tableName, columnName) {
   const newId = generateAlphanumericId();
-
-  // Query the table to check if the ID already exists
   const result = await pool.query(
     `SELECT ${columnName} FROM ${tableName} WHERE ${columnName} = $1`,
     [newId]
   );
-
-  // If the ID already exists, generate a new one recursively
   if (result.rows.length > 0) {
     return generateUniqueId(tableName, columnName); // Recursive call
   }
-
-  return newId; // Unique ID found
+  return newId;
 }
 
 // ─── File System Helpers ─────────────────────────────────────
@@ -79,6 +74,64 @@ const saveFile = async (uploadDir, fileObj) => {
 
 // ─── Image Controller ────────────────────────────────────────
 const imageController = {
+  createFolderGraphQL: async (_, { name }, user) => {
+    if (!name || name.trim().length === 0) {
+      throw new Error("Folder name is required");
+    }
+    const folderId = await generateUniqueId("folders", "id");
+    console.log("Generated folder ID:", folderId);
+    console.log("Generated folder User ID:", getUserId(user));
+    await pool.query(
+      "INSERT INTO folders (id, name, user_id) VALUES ($1, $2, $3)",
+      [folderId, name.trim(), getUserId(user)]
+    );
+
+    return {
+      id: folderId,
+      name: name.trim(),
+      created_at: new Date(),
+    };
+  },
+  deleteFolderGraphQL: async (_, { folderId }, user) => {
+    const userId = getUserId(user);
+    const folder = await pool.query(
+      "SELECT * FROM folders WHERE id = $1 AND user_id = $2",
+      [folderId, userId]
+    );
+
+    if (folder.rows.length === 0) {
+      throw new Error("Folder not found or not owned by user");
+    }
+
+    const uploadDir = path.join(__dirname, `../../uploads/${folderId}`);
+    await pool.query("DELETE FROM user_images WHERE folder_id = $1", [
+      folderId,
+    ]);
+    await pool.query("DELETE FROM folders WHERE id = $1", [folderId]);
+
+    if (fs.existsSync(uploadDir)) {
+      fs.rmSync(uploadDir, { recursive: true, force: true });
+    }
+
+    return true;
+  },
+  renameFolderGraphQL: async (_, { folderId, name }, user) => {
+    if (!name || name.trim().length === 0) {
+      throw new Error("New folder name is required");
+    }
+
+    const result = await pool.query(
+      "UPDATE folders SET name = $1 WHERE id = $2 AND user_id = $3 RETURNING id",
+      [name.trim(), folderId, getUserId(user)]
+    );
+
+    if (result.rowCount === 0) {
+      throw new Error("Folder not found or not owned by user");
+    }
+
+    return true;
+  },
+
   uploadImageGraphQL: async (_, { folderId, image, metadata = "" }, user) => {
     if (!user || isViewer(user) || isPremiumUser(user)) {
       throw new Error("You do not have permission to upload images.");
@@ -235,7 +288,10 @@ const imageController = {
     }
 
     const oldImageUrl = imageResult.rows[0].image_url;
-    const oldImagePath = path.join(__dirname, `../../uploads/${folderId}/${path.basename(oldImageUrl)}`);
+    const oldImagePath = path.join(
+      __dirname,
+      `../../uploads/${folderId}/${path.basename(oldImageUrl)}`
+    );
 
     // 3. Delete old image if it exists
     if (fs.existsSync(oldImagePath)) {

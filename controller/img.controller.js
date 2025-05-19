@@ -5,6 +5,16 @@ const pool = require("../database/index");
 const multer = require('multer');
 const sharp = require('sharp');
 
+const MIME_TYPES = {
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+};
+
+const VALID_FORMATS = Object.keys(MIME_TYPES);
 function sanitizeTableName(folderName) {
     return folderName.replace(/[\s-]/g, '_').toLowerCase(); // Replace spaces and hyphens with underscores
 }

@@ -70,28 +70,22 @@ const resolvers = {
 
   Mutation: {
     createFolder: async (_, { name }, context) => {
-      const user = checkRole(context, ["OWNER"]);
-      // You can add createFolderGraphQL logic to the controller if needed
-      return {
-        success: true,
-        message: `Folder '${name}' creation not yet implemented.`,
-      };
+      const user = checkRole(context, ["OWNER", "ADMINISTRATOR"]);
+      return await imgController.createFolderGraphQL(_, { name }, user);
     },
+
     deleteFolder: async (_, { folderId }, context) => {
-      const user = checkRole(context, ["OWNER"]);
-      // Implement or delegate to imgController.deleteFolderGraphQL if needed
-      return {
-        success: true,
-        message: `Delete folder '${folderId}' not yet implemented.`,
-      };
+      const user = checkRole(context, ["OWNER", "ADMINISTRATOR"]);
+      return await imgController.deleteFolderGraphQL(_, { folderId }, user);
     },
+
     renameFolder: async (_, { folderId, name }, context) => {
-      const user = checkRole(context, ["OWNER"]);
-      // Implement or delegate to imgController.renameFolderGraphQL if needed
-      return {
-        success: true,
-        message: `Rename folder '${folderId}' not yet implemented.`,
-      };
+      const user = checkRole(context, ["OWNER", "ADMINISTRATOR"]);
+      return await imgController.renameFolderGraphQL(
+        _,
+        { folderId, name },
+        user
+      );
     },
     uploadImage: async (_, args, context) => {
       const user = checkRole(context, ["OWNER", "ADMINISTRATOR"]);

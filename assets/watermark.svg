@@ -1,0 +1,14 @@
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 683 683" width="683" height="683">
+	<title>PostNewLogo</title>
+	<style>
+		tspan { white-space:pre } 
+		.s0 { fill: #d9d9d9 } 
+		.s1 { fill: #3963ee } 
+		.s2 { fill: #ff3131 } 
+	</style>
+	<path id="Shape 1" fill-rule="evenodd" class="s0" d="m341.5 683c-188.8 0-341.5-152.7-341.5-341.5 0-188.8 152.7-341.5 341.5-341.5 188.8 0 341.5 152.7 341.5 341.5 0 188.8-152.7 341.5-341.5 341.5z"/>
+	<g id="Folder 1">
+		<path id="POSTNEW.in copy" fill-rule="evenodd" class="s1" d="m201.6 388.8h-30.7v85.9h-60.7v-265.5h91.4q44.2 0 71.4 24.8 27.5 24.8 27.5 63 0 43.7-28.7 67.8-28.4 24-70.2 24zm-7-131.2h-23.7v83.1h20.1q48.1 0 48.1-43.7 0-39.4-44.5-39.4z"/>
+		<path id="POSTNEW.in copy" class="s2" d="m409.4 364.9v110h-60.8v-265.9h66.7l62 110.1q13 23.3 22.4 43.8 9.9 20.1 12.7 28.4l3.1 8.7q-3.9-29.2-3.9-80.9v-110.1h60.7v265.9h-66.6l-63.6-110q-12.6-21.4-22.4-41.9-9.5-20.9-13.1-30.7l-3.1-9.9q5.9 35.5 5.9 82.5z"/>
+	</g>
+</svg>
