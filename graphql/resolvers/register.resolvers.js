@@ -46,10 +46,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const formatDate = (date = new Date()) => date.toISOString().split('T')[0];
+const formatDate = (date = new Date()) => date.toISOString().split("T")[0];
 
 function normalizeUser(r) {
-  const clean = (v) => v && !/^unknown/i.test(v) ? v : null;
+  const clean = (v) => (v && !/^unknown/i.test(v) ? v : null);
   return {
     id: r.user_id,
     firstname: clean(r.firstname),
@@ -77,7 +77,7 @@ function signJwt(payload, expiresIn = TOKEN_TTL) {
 
 async function sendOtp(email, userId) {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const token = signJwt({ userId, email, otp }, '15m');
+  const token = signJwt({ userId, email, otp }, "15m");
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
   await transporter.sendMail({
@@ -102,7 +102,10 @@ async function findUserByEmail(email) {
 
 const resolvers = {
   Mutation: {
-    async register(_, { input: { email, pass_key, role_id = DEFAULT_ROLE_ID } }) {
+    async register(
+      _,
+      { input: { email, pass_key, role_id = DEFAULT_ROLE_ID } }
+    ) {
       const lowerEmail = email.toLowerCase();
       const { rowCount } = await pool.query(
         `SELECT 1 FROM user_emails WHERE LOWER(email)=LOWER($1)`,
@@ -124,8 +127,17 @@ const resolvers = {
         [userId, lowerEmail]
       );
 
-      const { token: email_otp_token, expiresAt: otp_expires_at } = await sendOtp(lowerEmail, userId);
-      return { token: "", user_id: userId, role_id, username: null, is_email_verified: false, email_otp_token, otp_expires_at };
+      const { token: email_otp_token, expiresAt: otp_expires_at } =
+        await sendOtp(lowerEmail, userId);
+      return {
+        token: "",
+        user_id: userId,
+        role_id,
+        username: null,
+        is_email_verified: false,
+        email_otp_token,
+        otp_expires_at,
+      };
     },
 
     async verifyEmailOtp(_, { token, otp_code }) {
@@ -146,7 +158,14 @@ const resolvers = {
       if (!rowCount) throw new Error("User not found after verification.");
 
       const userObj = normalizeUser(rows[0]);
-      return { token: signJwt({ user_id: userId, role_id: rows[0].role_id, is_email_verified: true }), user: userObj };
+      return {
+        token: signJwt({
+          user_id: userId,
+          role_id: rows[0].role_id,
+          is_email_verified: true,
+        }),
+        user: userObj,
+      };
     },
 
     async resendEmailOtp(_, { email }) {
@@ -158,13 +177,20 @@ const resolvers = {
       if (!rowCount) throw new Error("Email not found.");
 
       const userId = rows[0].user_id;
-      await pool.query(`UPDATE user_emails SET is_verified = FALSE WHERE user_id = $1`, [userId]);
-      const { token: email_otp_token, expiresAt: otp_expires_at } = await sendOtp(lowerEmail, userId);
+      await pool.query(
+        `UPDATE user_emails SET is_verified = FALSE WHERE user_id = $1`,
+        [userId]
+      );
+      const { token: email_otp_token, expiresAt: otp_expires_at } =
+        await sendOtp(lowerEmail, userId);
       return { email_otp_token, otp_expires_at };
     },
 
     async googleAuth(_, { idToken }) {
-      const ticket = await client.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID });
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: GOOGLE_CLIENT_ID,
+      });
       const { email, email_verified } = ticket.getPayload();
       if (!email_verified) throw new Error("Google email not verified");
 
@@ -184,21 +210,31 @@ const resolvers = {
         );
         user = { id: userId, pass_key: null };
       }
-      const { rows, rowCount } = await pool.query(GET_USER_BY_ID_SQL, [userId]);
+      const hasPassword = !!user.pass_key; // true if pass_key is a non‐empty string
+      const requiresPassword = !hasPassword; // true if they still need to set one
+      const { rows, rowCount } = await pool.query(GET_USER_BY_ID_SQL, [
+        user.id,
+      ]);
       if (!rowCount) throw new Error("User not found after verification.");
       const userObj = normalizeUser(rows[0]);
       return {
-        requiresPassword: user.pass_key,
+        requiresPassword,
         token: signJwt({ user_id: user.id, is_email_verified: true }),
-        user: userObj
+        user: userObj,
       };
     },
     async setPassword(_, { userId, newPassword }) {
       const hash = await bcrypt.hash(newPassword, 10);
-      await pool.query(`UPDATE users_info SET pass_key = $1 WHERE id = $2`, [hash, userId]);
+      await pool.query(`UPDATE users_info SET pass_key = $1 WHERE id = $2`, [
+        hash,
+        userId,
+      ]);
       const { rows, rowCount } = await pool.query(GET_USER_BY_ID_SQL, [userId]);
       if (!rowCount) throw new Error("User not found");
-      return { token: signJwt({ user_id: userId, is_email_verified: true }), user: normalizeUser(rows[0]) };
+      return {
+        token: signJwt({ user_id: userId, is_email_verified: true }),
+        user: normalizeUser(rows[0]),
+      };
     },
   },
 };
