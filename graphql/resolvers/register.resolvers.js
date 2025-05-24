@@ -191,17 +191,18 @@ const resolvers = {
         idToken,
         audience: GOOGLE_CLIENT_ID,
       });
-      const { email, email_verified } = ticket.getPayload();
+      const { email, email_verified, given_name, family_name,picture } = ticket.getPayload();
       if (!email_verified) throw new Error("Google email not verified");
 
       const lowerEmail = email.toLowerCase();
       let user = await findUserByEmail(lowerEmail);
       if (!user) {
         const userId = uuidv4().replace(/-/g, "");
+        const dummyHash = await bcrypt.hash(uuidv4(), 10);
         await pool.query(
-          `INSERT INTO users_info (id, pass_key, role_id, number, created_at)
-           VALUES ($1,NULL,$2,$3,NOW())`,
-          [userId, DEFAULT_ROLE_ID, `unknown-${Date.now()}`]
+          `INSERT INTO users_info (id, pass_key, role_id, number, firstname, lastname,image, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())`,
+          [userId, dummyHash, DEFAULT_ROLE_ID, `unknown-${Date.now()}`, given_name || "Unknown", family_name || "Unknown", picture || null]
         );
         await pool.query(
           `INSERT INTO user_emails (user_id,email,is_primary,is_verified,created_at)
@@ -219,7 +220,11 @@ const resolvers = {
       const userObj = normalizeUser(rows[0]);
       return {
         requiresPassword,
-        token: signJwt({ user_id: user.id, is_email_verified: true }),
+        token: signJwt({
+          user_id: user.id,
+          role_id: user.role_id,
+          is_email_verified: true,
+        }),
         user: userObj,
       };
     },
