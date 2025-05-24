@@ -136,6 +136,14 @@ const { typeDefs: imgTypeDefs } = require("./graphql/schemas/img.schema");
 const {
   resolvers: imgResolvers,
 } = require("./graphql/resolvers/img.resolvers");
+const { typeDefs: postThumbTypeDefs } = require("./graphql/schemas/post-thumb.schema");
+const {
+  resolvers: postThumbResolvers,
+} = require("./graphql/resolvers/post-thumb.resolvers");
+const { typeDefs: resetPasswordTypeDefs } = require("./graphql/schemas/reset-password.schema");
+const {
+  resolvers: resetPasswordResolvers,
+} = require("./graphql/resolvers/reset-password.resolvers");
 
 // ─── Start Apollo Server and attach to Express ──────────────────────────────
 async function startGraphQL() {
@@ -154,6 +162,8 @@ async function startGraphQL() {
       postCategoriesTypeDefs,
       postSubCategoriesTypeDefs,
       imgTypeDefs,
+      postThumbTypeDefs,
+      resetPasswordTypeDefs
     ],
     resolvers: [
       { Upload: GraphQLUpload },
@@ -169,6 +179,8 @@ async function startGraphQL() {
       postCategoriesResolvers,
       postSubCategoriesResolvers,
       imgResolvers,
+      postThumbResolvers,
+      resetPasswordResolvers
     ],
     context: async ({ req, res }) => {
       const authHeader = req.headers.authorization || "";

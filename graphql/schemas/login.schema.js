@@ -33,8 +33,6 @@ const typeDefs = gql`
     email: String!
     email_verified: Boolean!
     username: String
-
-    # newly added fields
     birthday: Date
     gender: Gender
     marital_status: MaritalStatus

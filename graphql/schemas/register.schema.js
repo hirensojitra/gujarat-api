@@ -19,7 +19,12 @@ const typeDefs = gql`
 
   extend type Mutation {
     register(input: RegisterInput!): RegisterPayload
-    verifyEmailOtp(token: String!, otp_code: String!): String
+    verifyEmailOtp(token: String!, otp_code: String!): AuthPayload!
+    resendEmailOtp(email: String!): ResendOtpPayload!
+  }
+  type ResendOtpPayload {
+    email_otp_token: String!
+    otp_expires_at: String!
   }
 `;
 

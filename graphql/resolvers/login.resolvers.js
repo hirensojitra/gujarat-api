@@ -95,14 +95,9 @@ const resolvers = {
     async login(_, { input: { login_id, pass_key } }) {
       const { rows, rowCount } = await pool.query(LOGIN_SQL, [login_id]);
       if (!rowCount) throw new Error("Invalid email or password.");
-
       const u = rows[0];
       const match = await bcrypt.compare(pass_key, u.pass_key);
       if (!match) throw new Error("Invalid email or password.");
-      if (!u.email_verified) {
-        throw new Error("Please verify your email before logging in.");
-      }
-
       return {
         token: signToken(u),
         user: normaliseUser(u),
