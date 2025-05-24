@@ -1,6 +1,13 @@
 const { gql } = require("apollo-server-express");
 
 const typeDefs = gql`
+  type GoogleAuthPayload {
+    token: String # only present if they already have a password
+    userId: ID!
+    email: String!
+    requiresPassword: Boolean!
+  }
+
   type RegisterPayload {
     token: String!
     user_id: ID!
@@ -21,6 +28,8 @@ const typeDefs = gql`
     register(input: RegisterInput!): RegisterPayload
     verifyEmailOtp(token: String!, otp_code: String!): AuthPayload!
     resendEmailOtp(email: String!): ResendOtpPayload!
+    googleAuth(idToken: String!): GoogleAuthPayload!
+    setPassword(userId: ID!, newPassword: String!): AuthPayload!
   }
   type ResendOtpPayload {
     email_otp_token: String!

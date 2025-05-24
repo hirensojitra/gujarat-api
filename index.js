@@ -13,8 +13,9 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // ─── CORS CONFIG ────────────────────────────────────────────────────────────
 const allowedOrigins = [
   "https://www.postnew.in",
-  "http://192.168.151.203:4500",
+  "http://192.168.64.203:4500",
   "https://studio.apollographql.com",
+  "http://localhost:4500"
 ];
 const corsOptions = {
   origin: (origin, callback) => {
@@ -136,11 +137,15 @@ const { typeDefs: imgTypeDefs } = require("./graphql/schemas/img.schema");
 const {
   resolvers: imgResolvers,
 } = require("./graphql/resolvers/img.resolvers");
-const { typeDefs: postThumbTypeDefs } = require("./graphql/schemas/post-thumb.schema");
+const {
+  typeDefs: postThumbTypeDefs,
+} = require("./graphql/schemas/post-thumb.schema");
 const {
   resolvers: postThumbResolvers,
 } = require("./graphql/resolvers/post-thumb.resolvers");
-const { typeDefs: resetPasswordTypeDefs } = require("./graphql/schemas/reset-password.schema");
+const {
+  typeDefs: resetPasswordTypeDefs,
+} = require("./graphql/schemas/reset-password.schema");
 const {
   resolvers: resetPasswordResolvers,
 } = require("./graphql/resolvers/reset-password.resolvers");
@@ -163,7 +168,7 @@ async function startGraphQL() {
       postSubCategoriesTypeDefs,
       imgTypeDefs,
       postThumbTypeDefs,
-      resetPasswordTypeDefs
+      resetPasswordTypeDefs,
     ],
     resolvers: [
       { Upload: GraphQLUpload },
@@ -180,12 +185,11 @@ async function startGraphQL() {
       postSubCategoriesResolvers,
       imgResolvers,
       postThumbResolvers,
-      resetPasswordResolvers
+      resetPasswordResolvers,
     ],
     context: async ({ req, res }) => {
       const authHeader = req.headers.authorization || "";
       let token = null;
-
       if (authHeader.startsWith("Bearer ")) {
         token = authHeader.replace("Bearer ", "");
       } else if (authHeader.split(".").length === 3) {
@@ -197,7 +201,7 @@ async function startGraphQL() {
       if (token) {
         try {
           const payload = jwt.verify(token, JWT_SECRET);
-          user = await getUserWithRoleById(payload.user_id); // Adds `role`
+          user = await getUserWithRoleById(payload.user_id);
         } catch (err) {
           console.warn("❌ JWT verification failed:", err.message);
         }
