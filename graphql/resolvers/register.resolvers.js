@@ -184,19 +184,15 @@ const resolvers = {
         );
         user = { id: userId, pass_key: null };
       }
-
-      if (!user.pass_key) {
-        return { userId: user.id, email: lowerEmail, requiresPassword: true, token: null };
-      }
-
+      const { rows, rowCount } = await pool.query(GET_USER_BY_ID_SQL, [userId]);
+      if (!rowCount) throw new Error("User not found after verification.");
+      const userObj = normalizeUser(rows[0]);
       return {
-        userId: user.id,
-        email: lowerEmail,
-        requiresPassword: false,
+        requiresPassword: user.pass_key,
         token: signJwt({ user_id: user.id, is_email_verified: true }),
+        user: userObj
       };
     },
-
     async setPassword(_, { userId, newPassword }) {
       const hash = await bcrypt.hash(newPassword, 10);
       await pool.query(`UPDATE users_info SET pass_key = $1 WHERE id = $2`, [hash, userId]);

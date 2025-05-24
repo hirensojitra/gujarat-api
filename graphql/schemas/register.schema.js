@@ -2,10 +2,9 @@ const { gql } = require("apollo-server-express");
 
 const typeDefs = gql`
   type GoogleAuthPayload {
-    token: String # only present if they already have a password
-    userId: ID!
-    email: String!
+    token: String 
     requiresPassword: Boolean!
+    user: UserPublicInfo!
   }
 
   type RegisterPayload {
