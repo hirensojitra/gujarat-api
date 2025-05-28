@@ -15,6 +15,19 @@ const typeDefs = gql`
       new_pass_key: String!
     ): AuthPayload!
   }
+  input ResetPasswordInput {
+    oldPassword: String!
+    newPassword: String!
+  }
+
+  type ResetPasswordPayload {
+    success: Boolean!
+    token: String
+    user: UserPublicInfo!
+  }
+  extend type Mutation {
+    resetPassword(input: ResetPasswordInput!): ResetPasswordPayload!
+  }
 `;
 
 module.exports = { typeDefs };

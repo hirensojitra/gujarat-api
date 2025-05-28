@@ -13,19 +13,32 @@ async function ensureDir(dir) {
 async function storeFile(postId, file) {
   const { createReadStream, filename: originalName } = await file;
   const ext = path.extname(originalName);
-  const timestamp = Date.now();
-  const uniqueName = `${postId}-${timestamp}-${Math.round(Math.random()*1e3)}${ext}`;
+  const uniqueName = `${postId}${ext}`;
+  const uploadDir = path.join(__dirname, "../../uploads/thumb");
+  const filePath = path.join(uploadDir, uniqueName);
 
-  const uploadDir = path.join(__dirname, "../uploads/thumb");
   await ensureDir(uploadDir);
 
-  const filePath = path.join(uploadDir, uniqueName);
+  // If you really want to remove the old file first:
+  try {
+    await fs.promises.access(filePath);
+    // file exists → remove it
+    await fs.promises.unlink(filePath);
+    console.log(`Overwriting existing thumbnail: ${uniqueName}`);
+  } catch (err) {
+    // either doesn't exist or some other error → ignore
+  }
+
+  // Now write (this will create or overwrite)
   const stream = createReadStream();
-  const out = fs.createWriteStream(filePath);
+  const out = fs.createWriteStream(filePath, { flags: "w" });
   stream.pipe(out);
   await finished(out);
 
-  return { filename: uniqueName, path: `/thumb/${uniqueName}` };
+  return {
+    filename: uniqueName,
+    path: `/thumb/${uniqueName}`,
+  };
 }
 
 module.exports = {
@@ -33,9 +46,10 @@ module.exports = {
   listPostThumbs: async (postId) => {
     const dir = path.join(__dirname, "../uploads/thumb");
     await ensureDir(dir);
-    return fs.readdirSync(dir)
-      .filter(f => f.startsWith(`${postId}-`))
-      .map(f => ({ filename: f, path: `/thumb/${f}` }));
+    return fs
+      .readdirSync(dir)
+      .filter((f) => f.startsWith(`${postId}-`))
+      .map((f) => ({ filename: f, path: `/thumb/${f}` }));
   },
 
   // Upload multiple thumbnails
@@ -75,5 +89,5 @@ module.exports = {
       results.push(saved);
     }
     return results;
-  }
+  },
 };

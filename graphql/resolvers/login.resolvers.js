@@ -75,7 +75,6 @@ function normaliseUser(r) {
     birthday: r.birthday ? formatLocalDate(r.birthday) : null,
     gender: r.gender ? r.gender.toUpperCase() : null,
     marital_status: r.marital_status ? r.marital_status.toUpperCase() : null,
-
     language: {
       id: r.language_id || null,
       name: r.language_name || null,
