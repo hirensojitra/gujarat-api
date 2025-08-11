@@ -110,7 +110,7 @@ const resolvers = {
       }
 
       if (numberUpdated) {
-        sets.push(`number_verified = $${idx}`);
+        sets.push(`number_verified = ${idx}`);
         vals.push(false);
         idx++;
       }
@@ -206,8 +206,9 @@ const resolvers = {
 
       const { rows, rowCount } = await pool.query(GET_USER_BY_ID_SQL, [userId]);
       if (!rowCount) throw new Error("Failed to fetch updated user");
-
-      return normaliseUser(rows[0]);
+      const data = normaliseUser(rows[0])
+      console.log("User updated successfully:", data);
+      return normaliseUser(data);
     },
   },
 };

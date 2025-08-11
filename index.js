@@ -15,6 +15,7 @@ const allowedOrigins = [
   "https://www.postnew.in",
   "http://192.168.64.203:4500",
   "https://studio.apollographql.com",
+  "http://localhost:4200",
   "http://localhost:4500"
 ];
 const corsOptions = {
@@ -62,7 +63,6 @@ app.use("/api/v1/images", require("./routes/images.router"));
 app.use("/api/v1/thumb-images", require("./routes/thumb-images.router"));
 app.use("/api/v1/img", require("./routes/img.router"));
 app.use("/api/v1/user-img", require("./routes/user-img.router"));
-app.use("/api/v1/track", require("./routes/track.router"));
 app.use("/api/v1", require("./routes/token.router"));
 
 // ─── GraphQL root types ─────────────────────────────────────────────────────
@@ -149,6 +149,12 @@ const {
 const {
   resolvers: resetPasswordResolvers,
 } = require("./graphql/resolvers/reset-password.resolvers");
+const {
+  typeDefs: treackTypeDefs,
+} = require("./graphql/schemas/track.schema");
+const {
+  resolvers: treackResolvers,
+} = require("./graphql/resolvers/track.resolvers");
 
 // ─── Start Apollo Server and attach to Express ──────────────────────────────
 async function startGraphQL() {
@@ -169,6 +175,7 @@ async function startGraphQL() {
       imgTypeDefs,
       postThumbTypeDefs,
       resetPasswordTypeDefs,
+      treackTypeDefs,
     ],
     resolvers: [
       { Upload: GraphQLUpload },
@@ -186,6 +193,7 @@ async function startGraphQL() {
       imgResolvers,
       postThumbResolvers,
       resetPasswordResolvers,
+      treackResolvers,
     ],
     context: async ({ req, res }) => {
       const authHeader = req.headers.authorization || "";

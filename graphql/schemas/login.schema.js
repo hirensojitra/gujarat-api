@@ -47,6 +47,7 @@ const typeDefs = gql`
   input LoginInput {
     login_id: String!
     pass_key: String!
+    rememberMe: Boolean
   }
 
   extend type Mutation {
