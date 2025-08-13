@@ -145,10 +145,25 @@ const imageController = {
     }
     await ensureDirectoryExists(uploadDir);
 
-    const resolvedImage = await image; // ✅ Await the upload promise
-    const savedPath = await saveFile(uploadDir, resolvedImage); // ✅ Pass the resolved object
+    const resolvedImage = await image; // Await the upload promise
+    const { createReadStream, filename, mimetype, encoding } = resolvedImage;
+
+    // Generate random filename
+    const randomName = Math.random().toString(36).substring(2, 8);
+    const fileExt = path.extname(filename);
+    const newFileName = `${randomName}${fileExt}`;
+    const savedPath = path.join(uploadDir, newFileName);
+
+    // Save the file
+    await new Promise((resolve, reject) => {
+      createReadStream()
+        .pipe(fs.createWriteStream(savedPath))
+        .on("finish", resolve)
+        .on("error", reject);
+    });
+
     const fileId = await generateUniqueId(`user_images`, "id");
-    const imageUrl = `/uploads/${path.basename(savedPath)}`;
+    const imageUrl = `/uploads/${folderId}/${newFileName}`;
 
     await pool.query(
       "INSERT INTO user_images (id, folder_id, image_url, metadata) VALUES ($1, $2, $3, $4)",
@@ -253,9 +268,8 @@ const imageController = {
       [imageId, folderId]
     );
     if (result.rows.length === 0) throw new Error("Image not found");
-
-    const filePath = path.join(__dirname, `../${result.rows[0].image_url}`);
-
+    // Use project root path
+    const filePath = path.join(process.cwd(), result.rows[0].image_url);
     await pool.query("DELETE FROM user_images WHERE id = $1", [imageId]);
     if (fs.existsSync(filePath)) {
       await fsPromises.unlink(filePath);
@@ -263,7 +277,6 @@ const imageController = {
 
     return true;
   },
-
   refreshImageGraphQL: async (_, { imageId, folderId, image }, user) => {
     if (!user || isViewer(user)) throw new Error("Unauthorized access");
 
@@ -288,40 +301,25 @@ const imageController = {
     }
 
     const oldImageUrl = imageResult.rows[0].image_url;
-    const oldImagePath = path.join(
-      __dirname,
-      `../../uploads/${folderId}/${path.basename(oldImageUrl)}`
-    );
-
-    // 3. Delete old image if it exists
-    if (fs.existsSync(oldImagePath)) {
-      await fsPromises.unlink(oldImagePath);
-    } else {
-      throw new Error("Old image not found on filesystem");
-    }
-
-    // 4. Save new image
+    const oldFileName = path.basename(oldImageUrl);
     const uploadDir = path.join(__dirname, `../../uploads/${folderId}`);
+    const oldImagePath = path.join(uploadDir, oldFileName);
+
+    // 3. Ensure folder exists
     await ensureDirectoryExists(uploadDir);
 
+    // 4. Save new image OVER the old file
     const resolvedImage = await image;
-    resolvedImage.filename = `${path.basename(oldImageUrl)}`;
-    const savedPath = await saveFile(uploadDir, resolvedImage);
-    const newImageUrl = `/uploads/${path.basename(savedPath)}`;
+    resolvedImage.filename = oldFileName; // Keep the same file name
+    await saveFile(uploadDir, resolvedImage);
 
-    // 5. Update DB record
-    await pool.query("UPDATE user_images SET image_url = $1 WHERE id = $2", [
-      newImageUrl,
-      imageId,
-    ]);
-
+    // 5. Return success — no need to update DB if filename didn't change
     return {
       id: imageId,
-      image_url: newImageUrl,
+      imageUrl: oldImageUrl, // same path
       message: "Image replaced successfully",
     };
   },
-
   getImageUrlGraphQL: async (imageId, user) => {
     if (isViewer(user)) throw new Error("Not authorized.");
     const result = await pool.query(

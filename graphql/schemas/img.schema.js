@@ -36,7 +36,7 @@ const typeDefs = gql`
 
   type RefreshImageResponse {
     id: ID!
-    image_url: String!
+    imageUrl: String!
     message: String!
   }
 
