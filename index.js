@@ -215,7 +215,7 @@ async function startGraphQL() {
         }
       }
 
-      return { req, res, user };
+      return { req, res, user, pool };
     },
   });
 

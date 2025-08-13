@@ -19,12 +19,9 @@ const resolvers = {
 
   Mutation: {
     uploadPostThumbs: async (_parent, { postId, thumbnails }, context) => {
-      console.log("uploadPostThumbs called", postId, thumbnails, context);
       if (!context.user) throw new AuthenticationError("Login required");
       if (!["ADMINISTRATOR", "OWNER"].includes(context.user.role))
         throw new ForbiddenError("Not permitted");
-
-      // thumbnails is an array of Upload promises
       return await thumbCtrl.bulkUploadPostThumbs(postId, thumbnails);
     },
 
