@@ -83,7 +83,6 @@ function buildFilters({ search, published, info_show, subcategoryId }) {
   return { where: clauses.join(" AND "), params, nextIndex: idx };
 }
 
-
 const resolvers = {
   JSON: JSONScalar,
   Upload: GraphQLUpload,
@@ -287,10 +286,11 @@ const resolvers = {
   },
 
   Mutation: {
-    async addPost(_, { input }, { req }) {
+    async updatePost(_, { input }, { req }) {
       await ensureAdmin(req);
 
       const {
+        id,
         h,
         w,
         title,
@@ -305,82 +305,103 @@ const resolvers = {
       } = input;
 
       const now = new Date().toISOString();
-      const id = Math.random().toString(36).substr(2, 9);
+      const normalizedSubcategoryId = subcategoryId || null;
 
-      const sql = `
-        INSERT INTO post_details
-          (id, deleted, h, w, title, info, info_show,
-           backgroundurl, data, download_counter,
-           created_at, updated_at, published, track, subcategory_id)
-        VALUES
-          ($1, $2, $3, $4, $5, $6, $7,
-           $8, $9, $10,
-           $11, $12, $13, $14, $15)
-        RETURNING *;
-      `;
-      const { rows } = await pool.query(sql, [
-        id,
-        false,
-        h,
-        w,
-        title,
-        info,
-        info_show,
-        backgroundurl,
-        data,
-        download_counter,
-        now,
-        now,
-        published,
-        track,
-        subcategoryId,
-      ]);
-      return rows[0];
-    },
-
-    async updatePost(_, { input }, { req }) {
-      await ensureAdmin(req);
-
-      const { id, ...fields } = input; // <-- This MUST be here
-
-      if (fields.subcategoryId) {
-        fields.subcategory_id = fields.subcategoryId;
-        delete fields.subcategoryId;
+      // --- Normalize JSON fields before query ---
+      let normalizedData = data;
+      if (data !== null && data !== undefined) {
+        if (typeof data === "string") {
+          try {
+            normalizedData = JSON.parse(data); // make it an object
+          } catch {
+            throw new Error("Invalid JSON format in 'data' field");
+          }
+        }
       }
 
-      const sets = [];
-      const vals = [];
-      let idx = 1;
-      const jsonFields = new Set(["data"]);
-      for (const [k, v] of Object.entries(fields)) {
-        if (v === null || v === undefined) continue;
+      if (!id) {
+        // --- ADD POST ---
+        const newId = Math.random().toString(36).substr(2, 9);
+        const sql = `
+      INSERT INTO post_details
+        (id, deleted, h, w, title, info, info_show,
+         backgroundurl, data, download_counter,
+         created_at, updated_at, published, track, subcategory_id)
+      VALUES
+        ($1, $2, $3, $4, $5, $6, $7,
+         $8, $9, $10,
+         $11, $12, $13, $14, $15)
+      RETURNING *;
+    `;
+        const { rows } = await pool.query(sql, [
+          newId,
+          false,
+          h,
+          w,
+          title,
+          info,
+          info_show,
+          backgroundurl,
+          normalizedData ? JSON.stringify(normalizedData) : null,
+          download_counter || 0,
+          now,
+          now,
+          published,
+          track,
+          normalizedSubcategoryId,
+        ]);
+        return rows[0];
+      } else {
+        // --- UPDATE POST ---
+        const fields = {
+          h,
+          w,
+          title,
+          info,
+          info_show,
+          backgroundurl,
+          data: normalizedData,
+          download_counter,
+          published,
+          track,
+          subcategory_id: normalizedSubcategoryId,
+        };
 
-        if (jsonFields.has(k) && typeof v === "object") {
-          vals.push(JSON.stringify(v));
-        } else {
-          vals.push(v);
+        const sets = [];
+        const vals = [];
+        let idx = 1;
+        const jsonFields = new Set(["data"]);
+
+        for (const [k, v] of Object.entries(fields)) {
+          if (v === null || v === undefined) continue;
+
+          if (jsonFields.has(k)) {
+            vals.push(JSON.stringify(v)); // always stringify JSON fields
+          } else {
+            vals.push(v);
+          }
+          sets.push(`${k} = $${idx++}`);
         }
 
-        sets.push(`${k} = $${idx++}`);
+        if (!sets.length) {
+          throw new Error("No fields provided for update");
+        }
+
+        sets.push(`updated_at = $${idx++}`);
+        vals.push(now);
+
+        vals.push(id);
+
+        const sql = `
+      UPDATE post_details
+         SET ${sets.join(", ")}
+       WHERE id = $${idx}
+      RETURNING *;
+    `;
+
+        const { rows } = await pool.query(sql, vals);
+        return rows[0];
       }
-
-      if (!sets.length) {
-        throw new Error("No fields provided for update");
-      }
-
-      sets.push(`updated_at = $${idx++}`);
-      vals.push(new Date().toISOString());
-
-      vals.push(id);
-      const sql = `
-    UPDATE post_details
-       SET ${sets.join(", ")}
-     WHERE id = $${idx}
-    RETURNING *;
-  `;
-
-      const { rows } = await pool.query(sql, vals);
-      return rows[0];
     },
     async softDeletePost(_, { id }, { req }) {
       await ensureAdmin(req);

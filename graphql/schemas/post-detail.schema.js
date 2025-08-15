@@ -411,7 +411,6 @@ const typeDefs = gql`
   }
 
   type Mutation {
-    addPost(input: PostInput!): PostDetails!
     updatePost(input: PostUpdateInput!): PostDetails!
     softDeletePost(id: String!): Boolean!
     recoverPost(id: String!): Boolean!
