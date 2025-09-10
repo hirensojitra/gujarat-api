@@ -1175,4 +1175,51 @@ const authController = {
   //   }
   // }
 };
+authController.deleteUser = async (req, res) => {
+    try {
+      const { userid } = req.params;
+      const { userid: requestingUserId } = req.user;
+
+      // Fetch the roles of the user making the request
+      const requestingUserQuery = "SELECT roles FROM users WHERE id = $1";
+      const requestingUserResult = await pool.query(requestingUserQuery, [
+        requestingUserId,
+      ]);
+      const requestingUser = requestingUserResult.rows[0];
+
+      if (!requestingUser) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      const requestingRolesArray = requestingUser.roles
+        .split(",")
+        .map((role) => role.trim());
+
+      // Ensure only "master" and "admin" can delete users
+      if (
+        !requestingRolesArray.includes("master") &&
+        !requestingRolesArray.includes("admin")
+      ) {
+        return res.status(403).json({ error: "You are not allowed to delete users" });
+      }
+
+      // Delete the user
+      const deleteQuery = "DELETE FROM users WHERE id = $1";
+      const deleteResult = await pool.query(deleteQuery, [userid]);
+
+      if (deleteResult.rowCount > 0) {
+        return res.status(200).json({
+          success: true,
+          message: "User deleted successfully",
+        });
+      } else {
+        return res.status(404).json({ error: "User not found" });
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error" });
+    }
+  };
 module.exports = authController;

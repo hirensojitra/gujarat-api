@@ -23,6 +23,7 @@ router.get('/users', authenticateToken, authController.getAllUsers);
 router.post("/forgot-password", authController.requestPasswordReset);
 router.post("/reset-password", authController.resetPassword);
 router.post("/validate-reset-token", authController.validateResetToken);
+router.delete('/users/:userid', authenticateToken, authController.deleteUser);
 
 
 module.exports = router;

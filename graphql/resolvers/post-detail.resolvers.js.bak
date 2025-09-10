@@ -174,7 +174,7 @@ const resolvers = {
 
     async getPostById(_, { id }) {
       const { rows } = await pool.query(
-        `SELECT *, subcategory_id as \"subcategoryId\" FROM post_details WHERE id = $1`,
+        `SELECT *, subcategory_id as "subcategoryId" FROM post_details WHERE id = $1`,
         [id]
       );
       return rows[0];
@@ -362,14 +362,14 @@ const resolvers = {
           } else {
             vals.push(v);
           }
-          sets.push(`${k} = $${idx++}`);
+          sets.push(`${k} = ${idx++}`);
         }
 
         if (!sets.length) {
           throw new Error("No fields provided for update");
         }
 
-        sets.push(`updated_at = $${idx++}`);
+        sets.push(`updated_at = ${idx++}`);
         vals.push(now);
 
         vals.push(id);
@@ -377,7 +377,7 @@ const resolvers = {
         const sql = `
       UPDATE post_details
          SET ${sets.join(", ")}
-       WHERE id = $${idx}
+       WHERE id = ${idx}
       RETURNING *;
     `;
 
