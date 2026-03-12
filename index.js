@@ -14,6 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const allowedOrigins = [
   "https://www.postnew.in",
   "http://192.168.64.203:4500",
+  "http://192.168.1.14:4200",
   "https://studio.apollographql.com",
   "http://localhost:4200",
   "http://localhost:4500"
