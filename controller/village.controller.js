@@ -4,10 +4,11 @@ const villageController = {
     try {
       const sql = `
             SELECT v.*, t.name AS taluka_name, d.name AS district_name
-            FROM village v
-            JOIN taluka t ON v.taluka_id = t.id
-            JOIN district d ON v.district_id = d.id
-            WHERE v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0
+            FROM villages v
+            JOIN talukas t ON v.taluka_id = t.id
+            JOIN districts d ON t.district_id = d.id
+            WHERE v.is_deleted = FALSE AND t.is_deleted = FALSE AND d.is_deleted = FALSE
+            ORDER BY v.name ASC
         `;
 
       const result = await pool.query(sql);
@@ -28,10 +29,10 @@ const villageController = {
       const { id } = req.params;
       const getVillagesByTaluka = `
             SELECT v.id, v.name, v.gu_name, t.name as taluka_name, t.id as taluka_id, t.gu_name as taluka_gu_name, d.name as district_name, d.id as district_id, d.gu_name as district_gu_name
-            FROM village v
-            JOIN taluka t ON v.taluka_id = t.id
-            JOIN district d ON v.district_id = d.id
-            WHERE v.taluka_id = $1 AND v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0
+            FROM villages v
+            JOIN talukas t ON v.taluka_id = t.id
+            JOIN districts d ON t.district_id = d.id
+            WHERE v.taluka_id = $1 AND v.is_deleted = FALSE AND t.is_deleted = FALSE AND d.is_deleted = FALSE
             ORDER BY v.name ASC;
         `;
       const villages = await pool.query(getVillagesByTaluka, [id]);
@@ -48,10 +49,11 @@ const villageController = {
     try {
       const sql = `
             SELECT v.*, t.name AS taluka_name, d.name AS district_name
-            FROM village v
-            JOIN taluka t ON v.taluka_id = t.id
-            JOIN district d ON v.district_id = d.id
-            WHERE v.is_deleted = 1 AND t.is_deleted = 0 AND d.is_deleted = 0
+            FROM villages v
+            JOIN talukas t ON v.taluka_id = t.id
+            JOIN districts d ON t.district_id = d.id
+            WHERE v.is_deleted = TRUE AND t.is_deleted = FALSE AND d.is_deleted = FALSE
+            ORDER BY v.name ASC
         `;
       const result = await pool.query(sql);
 
@@ -72,10 +74,11 @@ const villageController = {
 
       const sql = `
             SELECT v.*, t.name AS taluka_name, d.name AS district_name
-            FROM village v
-            JOIN taluka t ON v.taluka_id = t.id
-            JOIN district d ON v.district_id = d.id
-            WHERE v.is_deleted = 1 AND t.is_deleted = 0 AND d.is_deleted = 0 AND v.taluka_id = $1
+            FROM villages v
+            JOIN talukas t ON v.taluka_id = t.id
+            JOIN districts d ON t.district_id = d.id
+            WHERE v.is_deleted = TRUE AND t.is_deleted = FALSE AND d.is_deleted = FALSE AND v.taluka_id = $1
+            ORDER BY v.name ASC
         `;
 
       const result = await pool.query(sql, [id]);
@@ -102,15 +105,15 @@ const villageController = {
       }
 
       const sql = `
-        SELECT v.id, v.name, v.gu_name, t.name AS taluka_name, t.id AS taluka_id, t.gu_name AS taluka_gu_name, 
+        SELECT v.id, v.name, v.gu_name, t.name AS taluka_name, t.id AS taluka_id, t.gu_name AS taluka_gu_name,
                d.name AS district_name, d.id AS district_id, d.gu_name AS district_gu_name
-        FROM village v
-        JOIN taluka t ON v.taluka_id = t.id
-        JOIN district d ON v.district_id = d.id
-        WHERE v.id = $1 AND v.is_deleted = 0 AND t.is_deleted = 0 AND d.is_deleted = 0
+        FROM villages v
+        JOIN talukas t ON v.taluka_id = t.id
+        JOIN districts d ON t.district_id = d.id
+        WHERE v.id = $1 AND v.is_deleted = FALSE AND t.is_deleted = FALSE AND d.is_deleted = FALSE
       `;
 
-      const result = await pool.query(sql, [Number(id)]); // Make sure id is cast to a number
+      const result = await pool.query(sql, [Number(id)]);
 
       if (result.rows.length === 0) {
         return res.status(404).json({ message: "Village not found" });
@@ -129,24 +132,17 @@ const villageController = {
   },
   create: async (req, res) => {
     try {
-      const { name, gu_name, is_deleted, taluka_id } = req.body;
+      const { name, gu_name, taluka_id } = req.body;
 
       const sql = `
-          INSERT INTO village (name, gu_name, is_deleted, taluka_id, district_id)
-          SELECT $1, $2, $3, t.id, d.id
-          FROM taluka t
-          JOIN district d ON t.district_id = d.id
-          WHERE t.id = $4 AND t.is_deleted = 0 AND d.is_deleted = 0
+          INSERT INTO villages (name, gu_name, is_deleted, taluka_id)
+          VALUES ($1, $2, FALSE, $3)
+          RETURNING *
       `;
-      const result = await pool.query(sql, [
-        name,
-        gu_name,
-        is_deleted ? 1 : 0,
-        taluka_id,
-      ]);
+      const result = await pool.query(sql, [name, gu_name, taluka_id]);
 
       res.json({
-        data: result.rows,
+        data: result.rows[0],
       });
     } catch (error) {
       console.error(error);
@@ -157,43 +153,22 @@ const villageController = {
   },
   update: async (req, res) => {
     try {
-      const { name, gu_name, is_deleted, taluka_id, district_id } = req.body;
+      const { name, gu_name, taluka_id } = req.body;
       const { id } = req.params;
 
       const sql = `
-      UPDATE village SET
+      UPDATE villages SET
       name = $1,
       gu_name = $2,
-      is_deleted = $3,
-      taluka_id = $4,
-      district_id = $5
-      WHERE
-      id = $6
-      AND 
-      is_deleted = 0
-      AND EXISTS (
-          SELECT 1 FROM taluka t
-          JOIN district d ON t.district_id = d.id
-          WHERE t.id = $7
-          AND t.is_deleted = 0
-          AND d.is_deleted = 0
-          AND taluka_id = t.id
-      )
-      
+      taluka_id = $3
+      WHERE id = $4 AND is_deleted = FALSE
+      RETURNING *
       `;
 
-      const result = await pool.query(sql, [
-        name,
-        gu_name,
-        is_deleted ? 1 : 0,
-        taluka_id,
-        district_id,
-        id,
-        taluka_id,
-      ]);
+      const result = await pool.query(sql, [name, gu_name, taluka_id, id]);
 
       res.json({
-        data: result.rows,
+        data: result.rows[0],
       });
     } catch (error) {
       console.error(error);
@@ -206,17 +181,13 @@ const villageController = {
     try {
       const { id } = req.params;
       const sql = `
-      UPDATE village 
-        SET is_deleted = 1
-        WHERE id = $1 AND is_deleted = 0
-        AND EXISTS (
-            SELECT 1 FROM taluka t
-            JOIN district d ON t.district_id = d.id
-            WHERE t.id = taluka_id AND t.is_deleted = 0 AND d.is_deleted = 0
-        )`;
+      UPDATE villages
+        SET is_deleted = TRUE
+        WHERE id = $1 AND is_deleted = FALSE
+        RETURNING *`;
       const result = await pool.query(sql, [id]);
       res.json({
-        data: result.rows,
+        data: result.rows[0],
       });
     } catch (error) {
       console.error(error);
@@ -230,20 +201,16 @@ const villageController = {
       const { id } = req.params;
 
       const sql = `
-            UPDATE village
-            SET is_deleted = 0
+            UPDATE villages
+            SET is_deleted = FALSE
             WHERE id = $1
-            AND EXISTS (
-                SELECT 1 FROM taluka t
-                JOIN district d ON t.district_id = d.id
-                WHERE t.id = taluka_id AND t.is_deleted = 0 AND d.is_deleted = 0
-            )
+            RETURNING *
         `;
 
       const result = await pool.query(sql, [id]);
 
       res.json({
-        data: result.rows,
+        data: result.rows[0],
       });
     } catch (error) {
       console.error(error);
@@ -257,11 +224,10 @@ const villageController = {
       const { id } = req.params;
 
       const sql = `
-            SELECT COUNT(*) AS deletedVillageCount
-            FROM village v
-            JOIN taluka t ON v.taluka_id = t.id
-            JOIN district d ON v.district_id = d.id
-            WHERE v.is_deleted = 1 AND t.is_deleted = 0 AND d.is_deleted = 0 AND t.id = $1
+            SELECT COUNT(*) AS deletedvillagecount
+            FROM villages v
+            JOIN talukas t ON v.taluka_id = t.id
+            WHERE v.is_deleted = TRUE AND t.is_deleted = FALSE AND t.id = $1
         `;
 
       const result = await pool.query(sql, [id]);
