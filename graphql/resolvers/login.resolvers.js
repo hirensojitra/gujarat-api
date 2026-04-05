@@ -82,23 +82,24 @@ function normaliseUser(r) {
   };
 }
 
-function signToken({ user_id, role_id }) {
+function signToken({ user_id, role_id }, rememberMe = false) {
+  const expiresIn = rememberMe ? "7d" : "1d";
   return jwt.sign({ user_id, role_id, is_email_verified: true }, JWT_SECRET, {
-    expiresIn: TOKEN_TTL,
+    expiresIn,
   });
 }
 
 /* ───────────────────────── resolvers ──────────────────────────────────── */
 const resolvers = {
   Mutation: {
-    async login(_, { input: { login_id, pass_key } }) {
+    async login(_, { input: { login_id, pass_key, rememberMe } }) {
       const { rows, rowCount } = await pool.query(LOGIN_SQL, [login_id]);
       if (!rowCount) throw new Error("Invalid email or password.");
       const u = rows[0];
       const match = await bcrypt.compare(pass_key, u.pass_key);
       if (!match) throw new Error("Invalid email or password.");
       return {
-        token: signToken(u),
+        token: signToken(u, rememberMe),
         user: normaliseUser(u),
       };
     },

@@ -9,7 +9,7 @@ const nodemailer = require("nodemailer");
 // Config
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const JWT_SECRET = process.env.JWT_SECRET;
-const TOKEN_TTL = process.env.TOKEN_TTL || "7d";
+const TOKEN_TTL = process.env.TOKEN_TTL || "1d";
 const DEFAULT_ROLE_ID = process.env.DEFAULT_ROLE_ID || "4ef32db9";
 
 // Pre-built queries

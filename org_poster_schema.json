@@ -1,0 +1,38 @@
+[
+  {
+    "column_name": "id",
+    "data_type": "uuid"
+  },
+  {
+    "column_name": "sort_order",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "is_active",
+    "data_type": "boolean"
+  },
+  {
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "organization_id",
+    "data_type": "text"
+  },
+  {
+    "column_name": "post_id",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "role",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "label",
+    "data_type": "character varying"
+  }
+]

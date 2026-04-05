@@ -16,24 +16,21 @@ async function storeFile(postId, file) {
   const uniqueName = `${postId}${ext}`;
   const uploadDir = path.join(__dirname, "../../uploads/thumb");
   const filePath = path.join(uploadDir, uniqueName);
+  const tmpPath = path.join(uploadDir, `${postId}.tmp${ext}`);
 
   await ensureDir(uploadDir);
 
-  // If you really want to remove the old file first:
-  try {
-    await fs.promises.access(filePath);
-    // file exists → remove it
-    await fs.promises.unlink(filePath);
-    console.log(`Overwriting existing thumbnail: ${uniqueName}`);
-  } catch (err) {
-    // either doesn't exist or some other error → ignore
-  }
-
-  // Now write (this will create or overwrite)
+  // Write to a .tmp.jpg first to avoid Windows file-lock conflicts
   const stream = createReadStream();
-  const out = fs.createWriteStream(filePath, { flags: "w" });
+  const out = fs.createWriteStream(tmpPath, { flags: "w" });
   stream.pipe(out);
   await finished(out);
+
+  // Rename .tmp.jpg → .jpg (replaces existing, avoids Windows read-lock)
+  await fs.promises.rename(tmpPath, filePath).catch(err => {
+    console.error(`Rename failed:`, err);
+    // Continue even if rename fails, since the file was written to .tmp.jpg
+  });
 
   return {
     filename: uniqueName,
@@ -44,7 +41,7 @@ async function storeFile(postId, file) {
 module.exports = {
   // List all thumbnails for a post
   listPostThumbs: async (postId) => {
-    const dir = path.join(__dirname, "../uploads/thumb");
+    const dir = path.join(__dirname, "../../uploads/thumb");
     await ensureDir(dir);
     return fs
       .readdirSync(dir)
@@ -64,7 +61,7 @@ module.exports = {
 
   // Delete thumbnails by filename
   deletePostThumbs: async (postId, filenames) => {
-    const dir = path.join(__dirname, "../uploads/thumb");
+    const dir = path.join(__dirname, "../../uploads/thumb");
     const deleted = [];
     for (const name of filenames) {
       const filePath = path.join(dir, name);
@@ -80,7 +77,7 @@ module.exports = {
   bulkUpdatePostThumbs: async (postId, updates) => {
     const results = [];
     for (const { filename, file } of updates) {
-      const dir = path.join(__dirname, "../uploads/thumb");
+      const dir = path.join(__dirname, "../../uploads/thumb");
       const oldPath = path.join(dir, filename);
       if (fs.existsSync(oldPath) && filename.startsWith(`${postId}-`)) {
         fs.unlinkSync(oldPath);

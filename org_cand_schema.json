@@ -1,0 +1,102 @@
+{
+  "organizations": [
+    {
+      "column_name": "is_active",
+      "data_type": "boolean"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone"
+    },
+    {
+      "column_name": "id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "district_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "taluka_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "village_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "city_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "is_deleted",
+      "data_type": "boolean"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone"
+    },
+    {
+      "column_name": "name",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "type",
+      "data_type": "character varying"
+    }
+  ],
+  "candidates": [
+    {
+      "column_name": "id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "party_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone"
+    },
+    {
+      "column_name": "is_active",
+      "data_type": "boolean"
+    },
+    {
+      "column_name": "organization_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "img_right",
+      "data_type": "text"
+    },
+    {
+      "column_name": "img_front",
+      "data_type": "text"
+    },
+    {
+      "column_name": "full_name",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "electoral_roll_name",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "mobile_number",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "img_left",
+      "data_type": "text"
+    },
+    {
+      "column_name": "seat_name",
+      "data_type": "character varying"
+    }
+  ]
+}

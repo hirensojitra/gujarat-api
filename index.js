@@ -35,13 +35,13 @@ app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.options("/graphql", cors(corsOptions));
 
-// ─── Handle file uploads via graphql-upload middleware ──────────────────────
-app.use(
-  graphqlUploadExpress({
-    maxFileSize: 10_000_000, // 10 MB
-    maxFiles: 10,
-  })
-);
+// ─── GraphQL Middleware ───────────────────────────────────────────────────
+const graphqlUploadMiddleware = graphqlUploadExpress({
+  maxFileSize: 10_000_000,
+  maxFiles: 10,
+});
+app.use("/graphql", graphqlUploadMiddleware);
+
 const getUserWithRoleById = async (userId) => {
   const sql = `
     SELECT ui.id as userid, r.code as role
@@ -53,9 +53,14 @@ const getUserWithRoleById = async (userId) => {
   const result = await pool.query(sql, [userId]);
   return result.rows[0]; // returns { userid, role }
 };
+// ─── Serve uploaded files ───────────────────────────────────────────────────
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // ─── REST ENDPOINTS ─────────────────────────────────────────────────────────
 app.use("/api/v1/posts", require("./routes/posts.router"));
 app.use("/api/v1/post-detail", require("./routes/post-detail.router"));
+app.use("/api/v1/election-post-detail", require("./routes/election-post-detail.router"));
 app.use("/api/v1/auth", require("./routes/auth.router"));
 app.use("/api/v1/district", require("./routes/district.router"));
 app.use("/api/v1/taluka", require("./routes/taluka.router"));
@@ -156,6 +161,18 @@ const {
 const {
   resolvers: treackResolvers,
 } = require("./graphql/resolvers/track.resolvers");
+const { typeDefs: candidateTypeDefs } = require("./graphql/schemas/candidate.schema");
+const { resolvers: candidateResolvers } = require("./graphql/resolvers/candidate.resolvers");
+const { typeDefs: politicalPartyTypeDefs } = require("./graphql/schemas/political-party.schema");
+const { resolvers: politicalPartyResolvers } = require("./graphql/resolvers/political-party.resolvers");
+const { typeDefs: cityTypeDefs } = require("./graphql/schemas/city.schema");
+const { resolvers: cityResolvers } = require("./graphql/resolvers/city.resolvers");
+const { typeDefs: organizationTypeDefs } = require("./graphql/schemas/organization.schema");
+const { resolvers: organizationResolvers } = require("./graphql/resolvers/organization.resolvers");
+const { typeDefs: orgPosterTemplateTypeDefs } = require("./graphql/schemas/org-poster-template.schema");
+const { resolvers: orgPosterTemplateResolvers } = require("./graphql/resolvers/org-poster-template.resolvers");
+const { typeDefs: electionPostDetailTypeDefs } = require("./graphql/schemas/election-post-detail.schema");
+const { resolvers: electionPostDetailResolvers } = require("./graphql/resolvers/election-post-detail.resolvers");
 
 // ─── Start Apollo Server and attach to Express ──────────────────────────────
 async function startGraphQL() {
@@ -177,6 +194,12 @@ async function startGraphQL() {
       postThumbTypeDefs,
       resetPasswordTypeDefs,
       treackTypeDefs,
+      candidateTypeDefs,
+      politicalPartyTypeDefs,
+      cityTypeDefs,
+      organizationTypeDefs,
+      orgPosterTemplateTypeDefs,
+      electionPostDetailTypeDefs,
     ],
     resolvers: [
       { Upload: GraphQLUpload },
@@ -195,6 +218,12 @@ async function startGraphQL() {
       postThumbResolvers,
       resetPasswordResolvers,
       treackResolvers,
+      candidateResolvers,
+      politicalPartyResolvers,
+      cityResolvers,
+      organizationResolvers,
+      orgPosterTemplateResolvers,
+      electionPostDetailResolvers,
     ],
     context: async ({ req, res }) => {
       const authHeader = req.headers.authorization || "";

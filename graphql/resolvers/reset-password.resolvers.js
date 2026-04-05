@@ -69,7 +69,7 @@ function normaliseUser(r) {
 
 function signToken({ user_id, role_id }) {
   return jwt.sign({ user_id, role_id, is_email_verified: true }, JWT_SECRET, {
-    expiresIn: TOKEN_TTL,
+    expiresIn: "1d",
   });
 }
 
@@ -206,7 +206,7 @@ const resolvers = {
       const token = jwt.sign(
         { user_id: userId, is_email_verified: payload.is_email_verified },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.TOKEN_TTL || "7d" }
+        { expiresIn: "1d" }
       );
 
       return {

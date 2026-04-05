@@ -23,16 +23,22 @@ function buildUpdateQuery(table, id, data) {
 const resolvers = {
   Query: {
     getDistricts: async (_, { pagination = {} }) => {
-      const allowedFields = ['name', 'gu_name'];
+      const allowedFields = ['id', 'name', 'gu_name'];
       const allowedOrders = ['ASC', 'DESC'];
 
-      let { page = 1, limit = 10, sortBy = "name", sortOrder = "ASC" } = pagination;
+      let { page = 1, limit = 10, sortBy = "name", sortOrder = "ASC", search = "" } = pagination;
       if (!allowedFields.includes(sortBy)) sortBy = "name";
       if (!allowedOrders.includes(sortOrder.toUpperCase())) sortOrder = "ASC";
 
       const offset = (page - 1) * limit;
-      const query = `SELECT * FROM districts WHERE is_deleted = FALSE ORDER BY ${sortBy} ${sortOrder} LIMIT $1 OFFSET $2`;
-      const result = await pool.query(query, [limit, offset]);
+      const params = [limit, offset];
+      let whereClause = "WHERE is_deleted = FALSE";
+      if (search) {
+        params.push(`%${search}%`);
+        whereClause += ` AND (name ILIKE $${params.length} OR gu_name ILIKE $${params.length})`;
+      }
+      const query = `SELECT * FROM districts ${whereClause} ORDER BY ${sortBy} ${sortOrder} LIMIT $1 OFFSET $2`;
+      const result = await pool.query(query, params);
       return result.rows;
     },
 
@@ -43,16 +49,22 @@ const resolvers = {
     },
 
     getDeletedDistricts: async (_, { pagination = {} }) => {
-      const allowedFields = ['name', 'gu_name'];
+      const allowedFields = ['id', 'name', 'gu_name'];
       const allowedOrders = ['ASC', 'DESC'];
 
-      let { page = 1, limit = 10, sortBy = "name", sortOrder = "ASC" } = pagination;
+      let { page = 1, limit = 10, sortBy = "name", sortOrder = "ASC", search = "" } = pagination;
       if (!allowedFields.includes(sortBy)) sortBy = "name";
       if (!allowedOrders.includes(sortOrder.toUpperCase())) sortOrder = "ASC";
 
       const offset = (page - 1) * limit;
-      const query = `SELECT * FROM districts WHERE is_deleted = TRUE ORDER BY ${sortBy} ${sortOrder} LIMIT $1 OFFSET $2`;
-      const result = await pool.query(query, [limit, offset]);
+      const params = [limit, offset];
+      let whereClause = "WHERE is_deleted = TRUE";
+      if (search) {
+        params.push(`%${search}%`);
+        whereClause += ` AND (name ILIKE $${params.length} OR gu_name ILIKE $${params.length})`;
+      }
+      const query = `SELECT * FROM districts ${whereClause} ORDER BY ${sortBy} ${sortOrder} LIMIT $1 OFFSET $2`;
+      const result = await pool.query(query, params);
       return result.rows;
     },
 

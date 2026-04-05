@@ -17,7 +17,7 @@ const resolvers = {
            ORDER BY vs.timestamp`,
           [imgParam]
         );
-        return result.rows.map(row => ({ ...row.value_data, timestamp: row.timestamp }));
+        return result.rows.map(row => ({ value_data: row.value_data, timestamp: row.timestamp }));
       } catch (error) {
         console.error("Error fetching track data:", error);
         throw new Error("Failed to fetch track data");
@@ -25,142 +25,24 @@ const resolvers = {
         client.release();
       }
     },
-    exportTrackExcel: async (_, { imgParam }, context) => {
-      if (!context.user || (context.user.role !== 'admin' && context.user.role !== 'editor')) {
-        throw new Error("Unauthorized: Only admin or editor can export Excel.");
-      }
-
+    getAllTrackedPosters: async (_, __, context) => {
       const client = await pool.connect();
       try {
-        const result = await client.query(
-          `SELECT ks.keys_array, vs.value_data, vs.timestamp
-           FROM KeySet ks
-           JOIN ValueSet vs ON ks.id = vs.key_set_id
-           WHERE ks.img_id = $1
-           ORDER BY vs.timestamp`,
-          [imgParam]
-        );
-
-        if (result.rows.length === 0) {
-          throw new Error("No data found for this imgParam");
-        }
-
-        const workbook = new exceljs.Workbook();
-        const worksheet = workbook.addWorksheet('Data');
-
-        // Collect all unique keys from all value_data entries
-        let allKeys = new Set();
-        result.rows.forEach(row => {
-          Object.keys(row.value_data).forEach(key => allKeys.add(key));
-        });
-
-        // Add 'Timestamp' as the first header
-        const headers = ['Timestamp', ...Array.from(allKeys)];
-        worksheet.addRow(headers);
-
-        // Add data rows
-        result.rows.forEach(row => {
-          const rowData = [
-            new Date(row.timestamp).toLocaleString(), // Format timestamp
-            ...headers.slice(1).map(header => row.value_data[header] || '')
-          ];
-          worksheet.addRow(rowData);
-        });
-
-        const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'track');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-        const filePath = path.join(uploadsDir, `${imgParam}.xlsx`);
-        await workbook.xlsx.writeFile(filePath);
-
-        return `/uploads/track/${imgParam}.xlsx`; // Return URL to the file
+        const result = await client.query(`
+          SELECT ks.img_id, COUNT(vs.id) as total_downloads, MAX(vs.timestamp) as latest_download
+          FROM KeySet ks
+          JOIN ValueSet vs ON ks.id = vs.key_set_id
+          GROUP BY ks.img_id
+          ORDER BY latest_download DESC
+        `);
+        return result.rows.map(row => ({
+          img_id: row.img_id,
+          total_downloads: parseInt(row.total_downloads, 10),
+          latest_download: row.latest_download ? new Date(row.latest_download).toISOString() : null
+        }));
       } catch (error) {
-        console.error("Error generating Excel:", error);
-        throw new Error("Failed to generate Excel");
-      } finally {
-        client.release();
-      }
-    },
-    exportTrackPdf: async (_, { imgParam }, context) => {
-      if (!context.user || (context.user.role !== 'admin' && context.user.role !== 'editor')) {
-        throw new Error("Unauthorized: Only admin or editor can export PDF.");
-      }
-
-      const client = await pool.connect();
-      try {
-        const result = await client.query(
-          `SELECT ks.keys_array, vs.value_data, vs.timestamp
-           FROM KeySet ks
-           JOIN ValueSet vs ON ks.id = vs.key_set_id
-           WHERE ks.img_id = $1
-           ORDER BY vs.timestamp`,
-          [imgParam]
-        );
-
-        if (result.rows.length === 0) {
-          throw new Error("No data found for this imgParam");
-        }
-
-        const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'track');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-        const filePath = path.join(uploadsDir, `${imgParam}.pdf`);
-
-        const doc = new PDFDocument();
-        const writeStream = fs.createWriteStream(filePath);
-        doc.pipe(writeStream);
-
-        doc.fontSize(20).text(`Track Data for ${imgParam}`, { align: 'center' });
-        doc.moveDown();
-
-        // Collect all unique keys for headers
-        let allKeys = new Set();
-        result.rows.forEach(row => {
-          Object.keys(row.value_data).forEach(key => allKeys.add(key));
-        });
-        const headers = ['Timestamp', ...Array.from(allKeys)];
-
-        const tableTop = 150;
-        const itemHeight = 30;
-        const colWidth = (doc.page.width - 100) / headers.length; // Distribute columns evenly
-        let currentY = tableTop;
-
-        // Draw table headers
-        doc.font('Helvetica-Bold').fontSize(10);
-        headers.forEach((header, i) => {
-          doc.text(header, 50 + i * colWidth, currentY, { width: colWidth, align: 'center' });
-        });
-        currentY += itemHeight;
-        doc.strokeColor('#aaaaaa').lineWidth(1).moveTo(50, currentY - 5).lineTo(doc.page.width - 50, currentY - 5).stroke();
-
-        // Draw table rows
-        doc.font('Helvetica').fontSize(9);
-        result.rows.forEach(row => {
-          const rowData = [
-            new Date(row.timestamp).toLocaleString(),
-            ...headers.slice(1).map(header => row.value_data[header] || '')
-          ];
-
-          rowData.forEach((data, i) => {
-            doc.text(data, 50 + i * colWidth, currentY, { width: colWidth, align: 'center' });
-          });
-          currentY += itemHeight;
-          doc.strokeColor('#aaaaaa').lineWidth(0.5).moveTo(50, currentY - 5).lineTo(doc.page.width - 50, currentY - 5).stroke();
-        });
-
-        doc.end();
-
-        await new Promise((resolve, reject) => {
-          writeStream.on('finish', resolve);
-          writeStream.on('error', reject);
-        });
-
-        return `/uploads/track/${imgParam}.pdf`; // Return URL to the file
-      } catch (error) {
-        console.error("Error generating PDF:", error);
-        throw new Error("Failed to generate PDF");
+        console.error("Error fetching all tracked posters:", error);
+        throw new Error("Failed to fetch all tracked posters");
       } finally {
         client.release();
       }
@@ -177,23 +59,6 @@ const resolvers = {
 
         const imgId = imgParam;
         const keysArray = Object.keys(formData);
-
-        await client.query(`
-          CREATE TABLE IF NOT EXISTS KeySet (
-            id SERIAL PRIMARY KEY,
-            img_id VARCHAR(255) NOT NULL,
-            keys_array JSONB NOT NULL
-          );
-        `);
-
-        await client.query(`
-          CREATE TABLE IF NOT EXISTS ValueSet (
-            id SERIAL PRIMARY KEY,
-            key_set_id INTEGER REFERENCES KeySet(id),
-            value_data JSONB NOT NULL,
-            timestamp TIMESTAMPTZ DEFAULT NOW()
-          );
-        `);
 
         let keySetId;
         const keySetResult = await client.query(
@@ -220,6 +85,28 @@ const resolvers = {
       } catch (error) {
         console.error("Error saving data:", error);
         throw new Error("Failed to save data");
+      } finally {
+        client.release();
+      }
+    },
+    deleteTrackData: async (_, { imgParam }, context) => {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        const keySets = await client.query('SELECT id FROM KeySet WHERE img_id = $1', [imgParam]);
+        if (keySets.rows.length > 0) {
+          const keySetIds = keySets.rows.map(row => row.id);
+          await client.query('DELETE FROM ValueSet WHERE key_set_id = ANY($1::int[])', [keySetIds]);
+          await client.query('DELETE FROM KeySet WHERE img_id = $1', [imgParam]);
+        }
+        
+        await client.query('COMMIT');
+        return { message: "Tracking data deleted successfully" };
+      } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Error deleting track data:", error);
+        throw new Error("Failed to delete tracking data");
       } finally {
         client.release();
       }

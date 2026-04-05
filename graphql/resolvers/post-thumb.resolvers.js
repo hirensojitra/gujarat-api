@@ -20,7 +20,7 @@ const resolvers = {
   Mutation: {
     uploadPostThumbs: async (_parent, { postId, thumbnails }, context) => {
       if (!context.user) throw new AuthenticationError("Login required");
-      if (!["ADMINISTRATOR", "OWNER"].includes(context.user.role))
+      if (!["ADMINISTRATOR", "OWNER", "ADMIN"].includes(context.user.role))
         throw new ForbiddenError("Not permitted");
       return await thumbCtrl.bulkUploadPostThumbs(postId, thumbnails);
     },

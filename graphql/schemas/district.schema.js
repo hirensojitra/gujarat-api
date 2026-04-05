@@ -26,6 +26,7 @@ const typeDefs = gql`
     limit: Int
     sortBy: String
     sortOrder: String
+    search: String
   }
 
   type DistrictStats {

@@ -25,14 +25,20 @@ const typeDefs = gql`
     message: String!
   }
 
+  type TrackedPosterStats {
+    img_id: String!
+    total_downloads: Int!
+    latest_download: String
+  }
+
   type Query {
     getTrackData(imgParam: String!): [ValueSet]
-    exportTrackExcel(imgParam: String!): String # Returns a URL to the generated Excel file
-    exportTrackPdf(imgParam: String!): String   # Returns a URL to the generated PDF file
+    getAllTrackedPosters: [TrackedPosterStats]
   }
 
   type Mutation {
     saveTrackData(input: FormDataInput!): TrackSaveResponse
+    deleteTrackData(imgParam: String!): TrackSaveResponse
   }
 `;
 
