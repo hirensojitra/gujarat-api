@@ -15,6 +15,7 @@ const typeDefs = gql`
     img_left: String
     img_right: String
     is_active: Boolean
+    evm_index: Int
     created_at: String
     updated_at: String
   }
@@ -33,6 +34,7 @@ const typeDefs = gql`
       seat_name: String
       organization_id: ID
       is_active: Boolean
+      evm_index: Int
     ): Candidate
 
     updateCandidate(
@@ -44,6 +46,7 @@ const typeDefs = gql`
       seat_name: String
       organization_id: ID
       is_active: Boolean
+      evm_index: Int
     ): Candidate
 
     uploadCandidateImage(

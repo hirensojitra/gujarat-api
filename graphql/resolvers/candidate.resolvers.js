@@ -68,20 +68,20 @@ const candidateResolvers = {
       try {
         const {
           full_name, electoral_roll_name, mobile_number, party_id, 
-          seat_name, organization_id, is_active
+          seat_name, organization_id, is_active, evm_index
         } = args;
 
         const query = `
           INSERT INTO candidates (
             full_name, electoral_roll_name, mobile_number, party_id, 
-            seat_name, organization_id, is_active
+            seat_name, organization_id, is_active, evm_index
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING *
         `;
         const values = [
           full_name, electoral_roll_name, mobile_number, party_id, 
-          seat_name, organization_id, is_active !== undefined ? is_active : true
+          seat_name, organization_id, is_active !== undefined ? is_active : true, evm_index
         ];
         const result = await pool.query(query, values);
         return result.rows[0];
@@ -99,7 +99,7 @@ const candidateResolvers = {
 
         const updatableFields = [
           'full_name', 'electoral_roll_name', 'mobile_number', 'party_id', 
-          'seat_name', 'organization_id', 'is_active'
+          'seat_name', 'organization_id', 'is_active', 'evm_index'
         ];
 
         for (const field of updatableFields) {
