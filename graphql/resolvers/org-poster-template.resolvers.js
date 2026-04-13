@@ -10,7 +10,6 @@ const checkAuth = (user) => {
 const orgPosterTemplateResolvers = {
   Query: {
     getOrgPosterTemplates: async (_, { organization_id }, { user }) => {
-      checkAuth(user);
       try {
         const result = await pool.query(
           `SELECT * FROM org_poster_templates
