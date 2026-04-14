@@ -8,6 +8,16 @@ const checkAuth = (user) => {
 };
 
 const orgPosterTemplateResolvers = {
+  OrgPosterTemplate: {
+    required_image_set: async (parent) => {
+      if (!parent.required_image_set_id) return null;
+      const result = await pool.query(
+        'SELECT * FROM organization_image_sets WHERE id = $1',
+        [parent.required_image_set_id]
+      );
+      return result.rows[0] || null;
+    },
+  },
   Query: {
     getOrgPosterTemplates: async (_, { organization_id }, { user }) => {
       try {
@@ -24,14 +34,14 @@ const orgPosterTemplateResolvers = {
     },
   },
   Mutation: {
-    addOrgPosterTemplate: async (_, { organization_id, post_id, role, label, sort_order }, { user }) => {
+    addOrgPosterTemplate: async (_, { organization_id, post_id, role, label, sort_order, required_image_set_id }, { user }) => {
       checkAuth(user);
       try {
         const result = await pool.query(
-          `INSERT INTO org_poster_templates (organization_id, post_id, role, label, sort_order)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO org_poster_templates (organization_id, post_id, role, label, sort_order, required_image_set_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING *`,
-          [organization_id, post_id, role, label || null, sort_order || 0]
+          [organization_id, post_id, role, label || null, sort_order || 0, required_image_set_id || null]
         );
         return result.rows[0];
       } catch (err) {
@@ -39,14 +49,15 @@ const orgPosterTemplateResolvers = {
       }
     },
 
-    updateOrgPosterTemplate: async (_, { id, label, sort_order, is_active }, { user }) => {
+    updateOrgPosterTemplate: async (_, { id, label, sort_order, is_active, required_image_set_id }, { user }) => {
       checkAuth(user);
       try {
         const fields = [];
         const values = [];
-        if (label !== undefined)      { values.push(label);      fields.push(`label = $${values.length}`); }
-        if (sort_order !== undefined) { values.push(sort_order); fields.push(`sort_order = $${values.length}`); }
-        if (is_active !== undefined)  { values.push(is_active);  fields.push(`is_active = $${values.length}`); }
+        if (label !== undefined)                { values.push(label);                fields.push(`label = $${values.length}`); }
+        if (sort_order !== undefined)           { values.push(sort_order);           fields.push(`sort_order = $${values.length}`); }
+        if (is_active !== undefined)            { values.push(is_active);            fields.push(`is_active = $${values.length}`); }
+        if (required_image_set_id !== undefined){ values.push(required_image_set_id); fields.push(`required_image_set_id = $${values.length}`); }
         if (!fields.length) throw new Error('Nothing to update');
         fields.push(`updated_at = NOW()`);
         values.push(id);

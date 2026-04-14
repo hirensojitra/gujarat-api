@@ -34,6 +34,13 @@ const resolvers = {
         [parent.id]
       );
       return res.rows;
+    },
+    image_sets: async (parent) => {
+      const res = await pool.query(
+        'SELECT * FROM organization_image_sets WHERE organization_id = $1 AND is_deleted = false ORDER BY set_index',
+        [parent.id]
+      );
+      return res.rows;
     }
   },
   Query: {

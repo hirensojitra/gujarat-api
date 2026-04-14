@@ -173,6 +173,8 @@ const { typeDefs: orgPosterTemplateTypeDefs } = require("./graphql/schemas/org-p
 const { resolvers: orgPosterTemplateResolvers } = require("./graphql/resolvers/org-poster-template.resolvers");
 const { typeDefs: electionPostDetailTypeDefs } = require("./graphql/schemas/election-post-detail.schema");
 const { resolvers: electionPostDetailResolvers } = require("./graphql/resolvers/election-post-detail.resolvers");
+const { typeDefs: imageSetTypeDefs } = require("./graphql/schemas/image-set.schema");
+const { resolvers: imageSetResolvers } = require("./graphql/resolvers/image-set.resolvers");
 
 // ─── Start Apollo Server and attach to Express ──────────────────────────────
 async function startGraphQL() {
@@ -200,6 +202,7 @@ async function startGraphQL() {
       organizationTypeDefs,
       orgPosterTemplateTypeDefs,
       electionPostDetailTypeDefs,
+      imageSetTypeDefs,
     ],
     resolvers: [
       { Upload: GraphQLUpload },
@@ -224,6 +227,7 @@ async function startGraphQL() {
       organizationResolvers,
       orgPosterTemplateResolvers,
       electionPostDetailResolvers,
+      imageSetResolvers,
     ],
     context: async ({ req, res }) => {
       const authHeader = req.headers.authorization || "";

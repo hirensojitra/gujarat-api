@@ -29,6 +29,19 @@ const candidateResolvers = {
       } catch (err) {
         throw new Error(`Failed to fetch organization for candidate: ${err.message}`);
       }
+    },
+    image_sets: async (parent, _, { pool }) => {
+      try {
+        const result = await pool.query(`
+          SELECT cis.* FROM candidate_image_sets cis
+          JOIN organization_image_sets ois ON ois.id = cis.org_image_set_id
+          WHERE cis.candidate_id = $1 AND ois.is_deleted = false
+          ORDER BY ois.set_index
+        `, [parent.id]);
+        return result.rows;
+      } catch (err) {
+        throw new Error(`Failed to fetch image sets for candidate: ${err.message}`);
+      }
     }
   },
   Query: {
@@ -65,7 +78,9 @@ const candidateResolvers = {
   Mutation: {
     createCandidate: async (_, args, { pool, user }) => {
       checkAuth(user);
+      const client = await pool.connect();
       try {
+        await client.query('BEGIN');
         const {
           full_name, electoral_roll_name, mobile_number, party_id, 
           seat_name, organization_id, is_active, evm_index
@@ -83,10 +98,26 @@ const candidateResolvers = {
           full_name, electoral_roll_name, mobile_number, party_id, 
           seat_name, organization_id, is_active !== undefined ? is_active : true, evm_index
         ];
-        const result = await pool.query(query, values);
-        return result.rows[0];
+        const result = await client.query(query, values);
+        const newCandidate = result.rows[0];
+
+        // AUTO-PROVISION: Create empty image set entries for every org set
+        if (newCandidate.organization_id) {
+          await client.query(`
+            INSERT INTO candidate_image_sets (candidate_id, org_image_set_id)
+            SELECT $1, id FROM organization_image_sets 
+            WHERE organization_id = $2 AND is_deleted = false
+            ON CONFLICT DO NOTHING
+          `, [newCandidate.id, newCandidate.organization_id]);
+        }
+
+        await client.query('COMMIT');
+        return newCandidate;
       } catch (err) {
+        await client.query('ROLLBACK');
         throw new Error(`Failed to create candidate: ${err.message}`);
+      } finally {
+        client.release();
       }
     },
     updateCandidate: async (_, args, { pool, user }) => {

@@ -16,6 +16,7 @@ const typeDefs = gql`
     village: Village
     city: City
     candidates: [Candidate]
+    image_sets: [OrganizationImageSet]
   }
 
   input OrganizationInput {

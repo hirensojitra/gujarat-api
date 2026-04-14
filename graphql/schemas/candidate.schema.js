@@ -16,6 +16,7 @@ const typeDefs = gql`
     img_right: String
     is_active: Boolean
     evm_index: Int
+    image_sets: [CandidateImageSet]
     created_at: String
     updated_at: String
   }
